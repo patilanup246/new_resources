@@ -1,0 +1,1 @@
+nohup python3 youtube.py --rf release >/dev/null 2>&1 &

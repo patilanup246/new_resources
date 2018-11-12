@@ -1,0 +1,1 @@
+nohup python3 mailaddr.py --rf release >/dev/null 2>&1 &
