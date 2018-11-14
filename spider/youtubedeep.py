@@ -1,7 +1,9 @@
 import os
 import sys
+
 sys.path.append("./..")
 from logs.loggerDefine import loggerDefine
+
 youtubeDir = "./../logs/youtube/"
 if not os.path.exists(youtubeDir):
     os.makedirs(youtubeDir)
@@ -9,7 +11,6 @@ loggerFile = youtubeDir + "youtubedeep.log"
 logging = loggerDefine(loggerFile)
 import traceback
 import re
-from tools.checkurl import checkUrl
 from tools.translate.translate_google import mainTranslate
 from db.mongodb import connectMongo
 from tools.translate.translateYoudao import *
@@ -20,7 +21,7 @@ debug_flag = True if sys.argv[1] == "debug" else False
 mongodb = connectMongo(debug_flag)
 
 # 用户信息
-userInfoCollection = mongodb["userInfo"]
+collection = mongodb["resources"]
 
 # 关键字信息
 keyWordCollection = mongodb["keyWords"]
@@ -37,7 +38,6 @@ blackList = list(blackWhiteCollection.distinct("word", {"isBlack": True}))
 whiteList = list(blackWhiteCollection.distinct("word", {"isWhite": True}))
 
 # 已存在的url
-formerUrlCollection = mongodb["formerUrl"]
 
 whiteCount = 3
 
@@ -120,13 +120,7 @@ class YouTuBe(object):
                     # 对VideoTitleCount >=3 的进行深挖掘
                     if videoItem["VideoTitleCount"] >= whiteCount:
                         try:
-                            formerUrlCollection.insert({
-                                "_id": "1_" + item["url"],
-                                "url": item["url"],
-                                "platId": 1,
-                                "lastUpdate": int(time.time())
-                            })
-                            userInfoCollection.insert(item)
+                            collection.insert(item)
                         except Exception as e:
                             logging.error(e)
                         relateChannel = item["relateChannel"].strip().split("\n")
@@ -165,31 +159,23 @@ class YouTuBe(object):
                 # 判断是否在黑名单中
                 result = blackUrlCollection.find_one({"url": url})
                 if result:
-                    logging.warn("存在黑名单中:url:{}".format(url))
+                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
                     continue
 
-                result = formerUrlCollection.find_one({"url": url})
-                if result:
-                    # 代表存在
-                    logging.warn("存在数据库中:url:{}".format(url))
-                    continue
+                if name == "服装事业部":
+                    # 判断是否在数据库中
+                    result = collection.find_one({"part": "clothes", "url": url})
+                    if result:
+                        logging.warn("存在库中,name:{},url:{}".format(name, url))
+                        continue
 
-                # 判断是否存在接口中
-                isExists = checkUrl(url)
-                if isExists:
-                    try:
-                        formerUrlCollection.insert({
-                            "_id": "1_" + url,
-                            "url": url,
-                            "platId": 1,
-                            "lastUpdate": int(time.time())
-                        })
-                    except Exception as e:
-                        logging.error(e)
-                    # 代表存在接口中
-                    continue
+                else:
+                    # 判断是否在数据库中
+                    result = collection.find_one({"part": "GB", "url": url})
+                    if result:
+                        logging.warn("存在库中,name:{},url:{}".format(name, url))
+                        continue
                 self.userUrlList.append(url)
-                self.thList.append(url)
                 ExistUrl.append(url)
 
                 try:
@@ -198,21 +184,17 @@ class YouTuBe(object):
                     logging.error(traceback.format_exc())
                     continue
                 if channelList:
-                    # round += 1
-                    # if round >= 7:
-                    #     break
                     for urlChanel in channelList:
                         if urlChanel not in ExistUrl:
                             if urlChanel in urlList:
                                 urlList.append(urlChanel)
-            # if round >= 7:
-            #     break
+
             if num > 100:
                 break
             logging.info("第{}圈,keyWord:{}".format(round, keyWord))
 
         try:
-            userInfoCollection.update_one({"_id": _id}, {"$set": {"isDeep": True}})
+            collection.update_one({"_id": _id}, {"$set": {"isDeep": True}})
         except Exception as e:
             logging.error(e)
 
@@ -250,7 +232,10 @@ class YouTuBe(object):
         for title, lastUpdateTime, viewCount in zip(titleList, lastUpdateTimeList, viewCountList):
             videoTittle += title + "\n"
         # videoTittle = youdao(videoTittle)
-        videoTittleChinese = mainTranslate(videoTittle)
+        if not videoTittle.strip():
+            videoTittleChinese = ""
+        else:
+            videoTittleChinese = mainTranslate(videoTittle)
         VideoTitleCount = 0
         whiteWord = ""
         for word in whiteList:
@@ -260,13 +245,9 @@ class YouTuBe(object):
                 word_new = word + " "
                 whiteWord += word_new
 
-        if VideoTitleCount < self.VideoTitleCount:
-            logging.error("匹配度不超过{}分,videoUrl:{},目前匹配度:{},匹配单词:{}".format(self.VideoTitleCount, videoUrl.split("?")[0],
-                                                                          VideoTitleCount, whiteWord.strip()))
-            return None
-        else:
-            logging.error("匹配度大于等于{}分,videoUrl:{},匹配单词:{}".format(self.VideoTitleCount, videoUrl.split("?")[0],
-                                                                  whiteWord.strip()))
+
+        logging.error("匹配度大于等于{}分,videoUrl:{},匹配单词:{}".format(self.VideoTitleCount, videoUrl.split("?")[0],
+                                                              whiteWord.strip()))
         try:
             titleFirst = videoTittleChinese.split("\n")[0]
         except Exception as e:
@@ -329,7 +310,10 @@ class YouTuBe(object):
                 logging.error("处于非中文黑名单中,名词:{},userUrl:{}".format(blackWord, url.split("?")[0]))
                 return None
             # 翻译成中文
-            descriptionChinese = mainTranslate(description)
+            if not description.strip():
+                descriptionChinese = ""
+            else:
+                descriptionChinese = mainTranslate(description)
             # descriptionChinese = youdao(description)
 
             isBlack = False
@@ -505,7 +489,7 @@ def mainR():
     # 查看大于等于5,非深挖的数据
     while True:
         resultList = list(
-            userInfoCollection.find(
+            collection.find(
                 {"isDeep": False, "VideoTitleCount": {"$gte": whiteCount}, "relateChannel": {"$ne": ""}}).limit(100))
         if not resultList:
             logging.warn("没有合适的数据")
