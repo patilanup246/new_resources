@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 import sys
 
@@ -55,7 +54,7 @@ class YouTuBe(object):
         self.userUrlList = []
         self.formData = {}
         self.thList = []
-        self.pageNum = 14
+        self.pageNum = 9
         self.videoNum = 8
         self.VideoTitleCount = 1
         # self.IPlist = getip()
@@ -79,7 +78,7 @@ class YouTuBe(object):
                     # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915",
                     "accept-language": "zh-CN,zh;q=0.9"
                 }
-                response = requests.get(url=url, timeout=5, headers=headers, proxies=getIp(), verify=False)
+                response = requests.get(url=url, timeout=8, headers=headers, proxies=getIp(), verify=False)
                 response.encoding = "utf-8"
                 if response.status_code == 200:
                     responseBody = response.text
@@ -116,7 +115,7 @@ class YouTuBe(object):
                     # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915"
                 }
                 # print(headers)
-                response = requests.post(url=self.nextPageUrl, timeout=5, headers=headers, data=self.formData,
+                response = requests.post(url=self.nextPageUrl, timeout=8, headers=headers, data=self.formData,
                                          proxies=getIp(), verify=False)
                 response.encoding = "utf-8"
                 if response.status_code == 200:
@@ -155,10 +154,10 @@ class YouTuBe(object):
                 # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915"
             }
             userItem = {}
-            logging.info("获取用户about页面,url:{}".format(url + "/about"))
+            logging.info("获取用户about页面,url:{}   name:{}".format(url + "/about", name))
             for i in range(3):
                 try:
-                    response = requests.get(url=userUrl, headers=headers, timeout=5, proxies=getIp(), verify=False)
+                    response = requests.get(url=userUrl, headers=headers, timeout=8, proxies=getIp(), verify=False)
                     response.encoding = "utf-8"
                     if response.status_code == 200:
                         userItem = self.parsePageUser(response.text, userUrl)
@@ -172,10 +171,10 @@ class YouTuBe(object):
             if userItem:
                 videoUrl = url + "/videos?pbj=1"
                 videoItem = {}
-                logging.info("获取用户videos页面,url:{}".format(url + '/videos'))
+                logging.info("获取用户videos页面,url:{}    name:{}".format(url + '/videos', name))
                 for i in range(3):
                     try:
-                        response = requests.get(url=videoUrl, headers=headers, timeout=5, proxies=getIp(),
+                        response = requests.get(url=videoUrl, headers=headers, timeout=8, proxies=getIp(),
                                                 verify=False)
                         response.encoding = "utf-8"
                         if response.status_code == 200:
@@ -503,7 +502,7 @@ class YouTuBe(object):
     def parsePage(self, response, keyWord, name):
         global debug_flag
         try:
-            logging.info("获取下一页链接,keyWord:{}".format(keyWord))
+            logging.info("获取下一页链接,keyWord:{}  name:{}".format(keyWord, name))
             response = json.loads(response)
             itemSectionRenderer = jsonpath.jsonpath(response, "$..itemSectionRenderer")[0]
             contents = itemSectionRenderer["contents"]
@@ -605,10 +604,10 @@ class YouTuBe(object):
     def GetNextWhile(self, keyWord, name):
         i = 0
         while i < self.pageNum:
+            i += 1
             # logging.info("time sleep 5s")
             # time.sleep(5)
             self.sendRequestPost(keyWord, name)
-            i += 1
 
         self.changeWordStatus(keyWord)
 
@@ -668,6 +667,7 @@ class YouTuBe(object):
                     urlList.append(userUrl)
 
             for url in urlList:
+                logging.info("name:{},{}".format(name, len(threading.enumerate())))
                 # 判断是否在黑名单中
                 result = blackUrlCollection.find_one({"url": url})
                 if result:
@@ -728,7 +728,7 @@ class YouTuBe(object):
 def deal(result, youtube, name):
     keyWord = result["keyWord"]
     try:
-        logging.info("beggin to deal with keyWord:{}".format(keyWord))
+        logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, name))
         url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
         responseBody = youtube.sendRequest(url, keyWord)
         if responseBody:
@@ -738,35 +738,57 @@ def deal(result, youtube, name):
 
 
 def dealWord(name):
+    startThredNum = len(threading.enumerate())
+    logging.info("起始线程:{}".format(startThredNum))
     youtube = YouTuBe()
     while True:
+        logging.info("==================name:{}=====================".format(name))
         if name == "袁平":
-            threadNum = 6
+            thNUm = 8
+        elif name == "陈慎慎" or name == "周亮":
+            thNUm = 2
         else:
-            threadNum = 4
+            thNUm = 3
         resultList = list(
-            keyWordCollection.find({"resPeople": name, "getData": False}).sort([("hots", pymongo.DESCENDING)]).limit(
-                threadNum))
+            keyWordCollection.find({"resPeople": name, "getData": False}).limit(thNUm))
+        logging.info(resultList)
         if not resultList:
+            logging.error("没有关键字,name:{}".format(name))
             time.sleep(60)
+            continue
         thList = []
         for result in resultList:
             th = threading.Thread(target=deal, args=(result, youtube, name))
-            th.setDaemon(True)
-            th.start()
             thList.append(th)
+
+        for th in thList:
+            th.start()
+
         for th in thList:
             th.join()
 
+        logging.info("结束,name:{}".format(name))
+
 
 def mainR():
-    peopleList = list(keyWordCollection.distinct("resPeople", {"getData": False}))
+    peopleList = [
+        "周亮",
+        "袁平",
+        "陈慎慎",
+        "服装事业部",
+        # "林冰",
+        # "杨萌琳",
+        # "尚艳飞",
+        # "肖璐",
+        # "何欢欢"
+    ]
     proList = []
     for name in peopleList:
         pro = multiprocessing.Process(target=dealWord, args=(name,))
         pro.daemon = True
-        proList.append(pro)
         pro.start()
+        proList.append(pro)
+
     while True:
         for pro, name in zip(proList, peopleList):
             if not pro.is_alive():
@@ -774,9 +796,9 @@ def mainR():
                 peopleList.remove(name)
                 pro = multiprocessing.Process(target=dealWord, args=(name,))
                 pro.daemon = True
+                pro.start()
                 proList.append(pro)
                 peopleList.append(name)
-                pro.start()
         time.sleep(10)
 
 
