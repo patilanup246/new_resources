@@ -26,7 +26,8 @@ today = 0
 # newline='' 的作用是防止结果数据中出现空行，专属于python3
 def writeCsv():
     try:
-        file = os.path.abspath(os.path.join(os.getcwd(), "../..")) + "/file/{}{}.csv".format(table, str(datetime.now())[:10])
+        file = os.path.abspath(os.path.join(os.getcwd(), "../..")) + "/file/{}{}.csv".format(table,
+                                                                                             str(datetime.now())[:10])
         with open(file, "w", newline='', encoding="utf_8_sig") as csvfileWriter:
             writer = csv.writer(csvfileWriter)
             # 先写列名
@@ -38,7 +39,7 @@ def writeCsv():
             writer.writerow(fieldList)
 
             # allRecordRes = list(db_des_table.find({"csvLoad": False}))
-            allRecordRes = mongoQuery(db_des_table,{"csvLoad": False})
+            allRecordRes = mongoQuery(db_des_table, {"csvLoad": False, "VideoTitleCount": {"$gte": 2}})
             logging.info("总共数据量:{}".format(len(allRecordRes)))
             # 写入多行数据
             for record in allRecordRes:
@@ -72,6 +73,7 @@ def getName():
     nameList = db_des_table.distinct("name")
     for name in nameList:
         pass
+
 
 if __name__ == '__main__':
     getName()

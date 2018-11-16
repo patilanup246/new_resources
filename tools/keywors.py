@@ -38,6 +38,22 @@ AD_GROUP_ID = ''
 db = connectMongo(True)
 collection = db["keyWords"]
 
+langueDict = {
+    "波兰":"1030",
+    "葡萄牙":"1014",
+    "西班牙":"1003",
+    "英语":"1000",
+    "德国":"1001",
+    "意大利":"1004",
+    "土耳其":"1037",
+    "法国":"1002",
+    "匈牙利":"1024",
+    "斯洛文尼亚":"1034",
+    "保加利亚":"1020",
+    "俄罗斯":"1031"
+
+}
+
 
 # 主函数
 def main(client, keyword, ad_group_id=None):
@@ -68,10 +84,14 @@ def main(client, keyword, ad_group_id=None):
 
     # 语种限定
     # Language setting (optional).
-    #  selector['searchParameters'].append({
-    #      'xsi_type': 'LanguageSearchParameter',
-    #      'languages': [{'id': '1044'}]
-    #  })
+    id = langueDict.get(keyword[2])
+    print(id)
+    if not id:
+        return
+    selector['searchParameters'].append({
+         'xsi_type': 'LanguageSearchParameter',
+         'languages': [{'id': id}]
+     })
 
     # 网络搜索参数（可选）
     selector['searchParameters'].append({
@@ -136,7 +156,24 @@ def main(client, keyword, ad_group_id=None):
 
 if __name__ == '__main__':
     ops = open('error.txt', 'a')
-    lines = [lin for lin in csv.reader(open('start.csv', 'r', encoding="gbk"))]
+    lines = [lin for lin in csv.reader(open('start.csv', 'r',encoding="gbk"))]
+    # for y in lines:
+    #     item = {
+    #         "_id": y[0],
+    #         "originKey": y[0],
+    #         "language": y[2],
+    #         "resPeople": y[4],
+    #         "isGet": False,
+    #         "category": y[1],
+    #         "keyWord": y[0],
+    #         "hots": 99999,
+    #         "getData": False,
+    #     }
+    #     try:
+    #         collection.insert(item)
+    #     except Exception as e:
+    #         print(e)
+
     holewd = []
 
     adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
@@ -149,4 +186,4 @@ if __name__ == '__main__':
             print(traceback.format_exc())
             print('no')
             continue
-            # time.sleep(random.randint(40, 60))
+    # time.sleep(random.randint(40, 60))

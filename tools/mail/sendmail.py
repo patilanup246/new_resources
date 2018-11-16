@@ -83,21 +83,21 @@ def send_email(to_addr_in, filepath_in):
         # print to_addrs
         server.sendmail(from_addr, to_addrs, msg.as_string())
         server.quit()
+        logging.info("发送成功")
     except Exception as e:
         print("Error: unable to send email")
         print(traceback.format_exc())
 
 
 if __name__ == '__main__':
-    filepath = getName()
-    logging.info("program running")
+    logging.info("running")
     while True:
-        time.sleep(30)
         today = datetime.now()
-        if today.hour == 1 and today.minute == 1:
+        if today.hour == 9 and today.minute == 6:
             logging.info("时间到 即将读取文件")
             filepath = getName()
             # to_addr_in = 'huguangjing@globalegrow.com,1132372453@qq.com'
-            to_addr_in = "huguangjing@globalegrow.com,carson.c@gearbest.com,linbing@gearbest.com,frank.z@gearbest.com,aff.fr@gearbest.com,wuzerong@globalegrow.com"
+            to_addr_in = "huguangjing@globalegrow.com,zhouliang1@globalegrow.com,linbing@globalegrow.com,chenshenshen@globalegrow.com,aff.fr@gearbest.com,wuzerong@globalegrow.com"
             send_email(to_addr_in, filepath)
             time.sleep(3600)
+        time.sleep(30)

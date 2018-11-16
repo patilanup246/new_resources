@@ -1,31 +1,65 @@
-# -*- coding: utf-8 -*-
+# coding=utf-8
+from Crypto.Cipher import DES3  # 加密解密方法
+import base64
 
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-import time
-
-driver = webdriver.Chrome()
-driver.get("http://www.baidu.com")
-time.sleep(3)
-print(driver.current_window_handle)  #打印当前页面的句柄
-print(driver.title)  #打印页面标题
-
-#通过执行js语句为元素添加target="_blank"属性
-js = 'document.getElementsByName("tj_trnews")[0].target="_blank"'
-driver.execute_script(js)
+BS = DES3.block_size
+import json
+import requests
 
 
-news = driver.find_element_by_name('tj_trnews')
-news.click()
-time.sleep(3)
+def pad(s):
+    return s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
 
-handles = driver.window_handles  #获取所有打开窗口的句柄
-print(handles)
-for i in ["https://www.hao123.com","https://www.youtube.com"]:
-    driver.get(i)
-    print(driver.page_source)
-    # driver.switch_to.window(handles[0])
-    # print(driver.current_window_handle)
-    # print(driver.title)
-    # news = driver.find_element_by_name('tj_trnews')
-    # news.click()
+
+# 定义 padding 即 填充 为PKCS7
+
+def unpad(s):
+    return s[0:-ord(s[-1])]
+
+
+class prpcrypt():
+    def __init__(self, key, IV):
+        self.key = key
+        self.mode = DES3.MODE_CBC
+        self.iv = IV
+
+    # DES3的加密模式为CBC
+    def encrypt(self, text):
+        text = pad(text)
+        cryptor = DES3.new(self.key, self.mode, self.iv)
+        # self.iv 为 IV 即偏移量
+        x = len(text) % 8
+        if x != 0:
+            text = text + '\0' * (8 - x)  # 不满16，32，64位补0
+        # print(text)
+        self.ciphertext = cryptor.encrypt(text)
+        return base64.standard_b64encode(self.ciphertext).decode("utf-8")
+
+    def decrypt(self, text):
+        cryptor = DES3.new(self.key, self.mode, self.iv)
+        de_text = base64.standard_b64decode(text)
+        plain_text = cryptor.decrypt(de_text)
+        # st = str(plain_text.decode("utf-8")).rstrip('\0')
+        # out = unpad(st)
+        # return out
+        # 上面注释内容解密如果运行报错，就注释掉试试
+        return plain_text
+
+
+if __name__ == '__main__':
+    url = 'http://dc-mobilesale-report.gw-ec.com/interface/app/salestatistic'
+    inner = {"user_name": "lixiaoxian1", "key": "999b7cc8c20ac350464e0f4bea7bea0c"}
+    header = {"Content-Type": "application/x-www-form-urlencoded",
+              "Accept-Encoding": "gzip",
+              "User-Agent": "okhttp/3.8.0"
+              }
+    res = requests.post(url=url, data=inner, headers=header)
+    res.encoding = 'utf-8'
+    print(res.text)
+    cryptObj = prpcrypt(key='qNB7x0P3fIAQvVbOV6nGAtek', IV='213sa152')
+    data_dict = {"user_name": "lixiaoxian1", "key": "999b7cc8c20ac350464e0f4bea7bea0c"}
+    js = json.dumps(data_dict)
+    e = cryptObj.encrypt(js)  # 加密内容
+    print(type(res.text.encode()))
+    d = cryptObj.decrypt(res.text)
+    print(d.decode("utf-8", 'ignore'))

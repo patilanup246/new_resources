@@ -29,7 +29,7 @@ from fake_useragent import UserAgent
 
 debug_flag = True if sys.argv[1] == "debug" else False
 mongodb = connectMongo(debug_flag)
-userCollection = mongodb["userInfo"]
+userCollection = mongodb["resources"]
 
 api_key = "2c4f703bb6cd0fa62bedec432feca2de"
 site_key_pattern = 'data-sitekey="(.+?)"'
@@ -236,8 +236,8 @@ def main_process(channel_url):
             logging.error("邮箱获取失败,url:{}".format(channel_url))
             continue
     try:
-        userCollection.update_one({"url": channel_url}, {
-            "$set": {"emailAddress": mail_addr, "isRecaptcha": True}})
+        userCollection.update({"url": channel_url}, {
+            "$set": {"emailAddress": mail_addr, "isRecaptcha": True}},multi=True)
         logging.info("邮箱新增成功:url:{},  mailaddr:{}".format(channel_url, mail_addr))
     except Exception as e:
         logging.error(e)

@@ -1,22 +1,23 @@
 from fake_useragent import UserAgent
 from selenium import webdriver
+from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 
 
 def getOption(headless):
     options = webdriver.ChromeOptions()
-
     if headless:
         options.add_argument("--headless")
-        options.add_argument("--disable-gpu")
-        prefs = {
-            'profile.default_content_setting_values': {
-                'images': 2,
-                'automatic_downloads': 1,
-            }
+    options.add_argument("--disable-gpu")
+    prefs = {
+        'profile.default_content_setting_values': {
+            'images': 2,
+            # "javascript":2,  # facebook无法禁止加载javascript
+            'automatic_downloads': 1,
         }
-        options.add_experimental_option('prefs', prefs)
+    }
+    options.add_experimental_option('prefs', prefs)
     # 默认中文
-    options.add_argument("lang=zh_CN.UTF-8")
+    options.add_argument("–lang=zh-CN")
     options.add_argument("–start-maximized")
     options.add_argument("--no-sandbox")
     options.add_argument('--disable-dev-shm-usage')
@@ -47,5 +48,4 @@ def getOption(headless):
     # if len(g_proxy_address) <= 0:
     #     options.add_extension(get_chrome_proxy_extension(proxy=proxy))
     # 禁止加载图片
-
     return options

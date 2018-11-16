@@ -1,4 +1,3 @@
-import pymongo
 import csv
 import traceback
 import os
@@ -13,7 +12,7 @@ import logging
 
 db = connectMongo(True)
 database = "globalegrow"
-table = "userInfo"
+table = "resources"
 db_des_table = db[table]
 
 
@@ -31,13 +30,28 @@ def writeCsv(file, name):
                          "name", "VideoTitleCount",
                          "subscriberCount", "viewCountAvg", "titleLastUpdateTime", "viewCountFirst", "whiteWord"]
             writer.writerow(fieldList)
-            allRecordRes = mongoQuery(db_des_table, {"csvLoad": False, "name": name})
+            if name == "袁平":
+                allRecordRes = mongoQuery(db_des_table,
+                                          {"csvLoad": False, "name": name, "VideoTitleCount": {"$gte": 2}})
+            else:
+                allRecordRes = mongoQuery(db_des_table,
+                                          {"csvLoad": False, "name": name, "VideoTitleCount": {"$gte": 6}})
             logging.info("总共数据量:{}".format(len(allRecordRes)))
+            if len(allRecordRes) == 0:
+                os.remove(file)
+                return
+
             # 写入多行数据
             for record in allRecordRes:
-                if record["VideoTitleCount"] >= 2:
-                    if not record["isRecaptcha"]:
-                        continue
+                if record["name"] == "袁平":
+                    if record["VideoTitleCount"] >= 2 and record["isMail"] and record["emailAddress"] == "":
+                        if not record["isRecaptcha"]:
+                            continue
+                else:
+                    if record["VideoTitleCount"] >= 6 and record["isMail"] and record["emailAddress"] == "":
+                        if not record["isRecaptcha"]:
+                            continue
+
                 # print(record)
                 recordValueLst = []
                 try:
@@ -68,6 +82,8 @@ def getName():
         os.makedirs(filepath)
     nameList = db_des_table.distinct("name")
     for name in nameList:
+        if not name:
+            continue
         fileName = filepath + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
         logging.info(fileName)
         writeCsv(fileName, name)

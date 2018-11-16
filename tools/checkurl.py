@@ -19,12 +19,12 @@ def sendRequest(url, domain):
         print(traceback.format_exc())
 
 
-def checkUrl(url):
+def checkUrl(url, domain):
     if url.endswith("/"):
         url = url[:-1]
     urlList = url.split(".com/")
     url = "http://www.youtube.com/" + urlList[-1]
-    domain = "http://mms.gloapi.com/"
+    # domain = "http://mms.gloapi.com/"
     isExist = True  # 代表存在mms中
     responseBody = sendRequest(url, domain)
     if responseBody:
