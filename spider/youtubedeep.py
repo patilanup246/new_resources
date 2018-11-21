@@ -39,7 +39,9 @@ whiteList = list(blackWhiteCollection.distinct("word", {"isWhite": True}))
 
 # 已存在的url
 
-whiteCount = 3
+whiteCount = 6
+
+invisibleUrl = mongodb["invisibleUrl"]
 
 
 class YouTuBe(object):
@@ -162,6 +164,11 @@ class YouTuBe(object):
                     logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
                     continue
 
+                result = invisibleUrl.find_one({"url": url})
+                if result:
+                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
+                    continue
+
                 if name == "服装事业部":
                     # 判断是否在数据库中
                     result = collection.find_one({"part": "clothes", "url": url})
@@ -207,9 +214,23 @@ class YouTuBe(object):
         lastUpdateTimeList = jsonpath.jsonpath(response, "$..gridRenderer.items..publishedTimeText.simpleText")
         lastUpdateTimeList = lastUpdateTimeList[:self.videoNum]
         if "年" in lastUpdateTimeList[0]:
+            try:
+                invisibleUrl.insert({
+                            "_id": videoUrl.split("?")[0].replace("/videos", ""),
+                            "url": videoUrl.split("?")[0].replace("/videos", ""),
+                        })
+            except Exception as e:
+                pass
             return None
         if "月" in lastUpdateTimeList[0]:
             if int(re.search(r"(\d+)", lastUpdateTimeList[0]).group(1)) > 6:
+                try:
+                    invisibleUrl.insert({
+                        "_id": videoUrl.split("?")[0].replace("/videos", ""),
+                        "url": videoUrl.split("?")[0].replace("/videos", ""),
+                    })
+                except Exception as e:
+                    pass
                 return None
 
         viewCountTextList = jsonpath.jsonpath(response, "$..gridRenderer.items..viewCountText.simpleText")
@@ -227,6 +248,13 @@ class YouTuBe(object):
                 # logging.info(viewCountText)
                 continue
         if int(totalViewCount / len(titleList)) < 2000:
+            try:
+                invisibleUrl.insert({
+                            "_id": videoUrl.split("?")[0].replace("/videos", ""),
+                            "url": videoUrl.split("?")[0].replace("/videos", ""),
+                        })
+            except Exception as e:
+                pass
             return None
         videoTittle = ""
         for title, lastUpdateTime, viewCount in zip(titleList, lastUpdateTimeList, viewCountList):
@@ -281,13 +309,20 @@ class YouTuBe(object):
             subscriberCount = self.dealSubscriberCount(responseText)
             if subscriberCount < 5000:
                 logging.error("订阅者数量不超过5000,userUrl:{},订阅人数:{}".format(url.split("?")[0], subscriberCount))
+                try:
+                    invisibleUrl.insert({
+                        "_id": url.split("?")[0].replace("/about", ""),
+                        "url": url.split("?")[0].replace("/about", ""),
+                    })
+                except Exception as e:
+                    pass
                 return None
 
                 # 观看人数
             viewCount = self.dealViewCont(responseText)
-            if viewCount < 5000:
-                logging.error("观看人数不超过5000,userUrl:{},观看人数:{}".format(url.split("?")[0], viewCount))
-                return None
+            # if viewCount < 5000:
+            #     logging.error("观看人数不超过5000,userUrl:{},观看人数:{}".format(url.split("?")[0], viewCount))
+            #     return None
 
             # 评论:内容
             description, descriptionLong = self.dealDescription(responseText)

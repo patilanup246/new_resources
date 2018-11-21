@@ -44,7 +44,9 @@ def send_email(to_addr_in, filepath_in):
     msg['From'] = _format_addr('胡光晶 <%s>' % from_addr)  # 显示的发件人
     # msg['To'] = _format_addr('管理员 <%s>' % to_addr)                # 单个显示的收件人
     msg['To'] = ",".join(to_addrs)  # 多个显示的收件人
-    msg['Subject'] = Header('新资源项目youtube爬虫数据……'.format(datetime.now()), 'utf-8').encode()  # 显示的邮件标题
+    today = datetime.now()
+    msg['Subject'] = Header('新资源项目youtube爬虫数据……{}.{}.{}'.format(today.year, today.month, today.day),
+                            'utf-8').encode()  # 显示的邮件标题
 
     # 需要传入的路径
     # filepath = r'D:\test'
@@ -93,7 +95,7 @@ if __name__ == '__main__':
     logging.info("running")
     while True:
         today = datetime.now()
-        if today.hour == 9 and today.minute == 6:
+        if today.hour == 1 and today.minute == 1:
             logging.info("时间到 即将读取文件")
             filepath = getName()
             # to_addr_in = 'huguangjing@globalegrow.com,1132372453@qq.com'

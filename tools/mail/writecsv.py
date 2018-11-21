@@ -14,6 +14,7 @@ db = connectMongo(True)
 database = "globalegrow"
 table = "resources"
 db_des_table = db[table]
+fbcollection = db["fbresources"]
 
 
 # 将数据写入到CSV文件中
@@ -35,7 +36,7 @@ def writeCsv(file, name):
                                           {"csvLoad": False, "name": name, "VideoTitleCount": {"$gte": 2}})
             else:
                 allRecordRes = mongoQuery(db_des_table,
-                                          {"csvLoad": False, "name": name, "VideoTitleCount": {"$gte": 6}})
+                                          {"csvLoad": False, "name": name, "VideoTitleCount": {"$gte": 4}})
             logging.info("总共数据量:{}".format(len(allRecordRes)))
             if len(allRecordRes) == 0:
                 os.remove(file)
@@ -48,7 +49,7 @@ def writeCsv(file, name):
                         if not record["isRecaptcha"]:
                             continue
                 else:
-                    if record["VideoTitleCount"] >= 6 and record["isMail"] and record["emailAddress"] == "":
+                    if record["VideoTitleCount"] >= 4 and record["isMail"] and record["emailAddress"] == "":
                         if not record["isRecaptcha"]:
                             continue
 
@@ -74,19 +75,76 @@ def writeCsv(file, name):
         logging.error(traceback.format_exc())
 
 
+def writeCsvFB(file, name):
+    try:
+        with open(file, "w", newline='', encoding="utf_8_sig") as csvfileWriter:
+            writer = csv.writer(csvfileWriter)
+            fieldList = ["keyWord", "name", "manager", "groupType", "postNum", "groupName", "url", "groupNum",
+                         "description"]
+            writer.writerow(fieldList)
+            allRecordRes = mongoQuery(fbcollection, {"csvLoad": False, "name": name, "postNum": {"$gte": 50}})
+            logging.info("总共数据量:{}".format(len(allRecordRes)))
+            if len(allRecordRes) == 0:
+                os.remove(file)
+                return
+
+            # 写入多行数据
+            for record in allRecordRes:
+                if not record["groupName"]:
+                    continue
+
+                if record["language"] == "英语":
+                    if record["postNum"] < 100:
+                        continue
+                else:
+                    if record["postNum"] < 50:
+                        continue
+
+                recordValueLst = []
+                try:
+                    for field in list(fieldList):
+                        if field not in record.keys():
+                            recordValueLst.append("None")
+                        else:
+                            recordValueLst.append(record[field])
+                    try:
+                        writer.writerow(recordValueLst)
+                    except Exception as e:
+                        print(e)
+                    try:
+                        fbcollection.update_one({"_id": record["_id"]}, {"$set": {"csvLoad": True}})
+                    except Exception as e:
+                        return None
+                except Exception as e:
+                    print(traceback.format_exc())
+    except Exception as e:
+        logging.error(traceback.format_exc())
+
+
 def getName():
     today = datetime.now()
     filepath = os.path.abspath(os.path.join(os.getcwd(), "../..")) + "/file/{}_{}_{}/".format(today.year, today.month,
                                                                                               today.day)
     if not os.path.exists(filepath):
         os.makedirs(filepath)
-    nameList = db_des_table.distinct("name")
+    # youtube数据
+    # nameList = db_des_table.distinct("name")
+    # for name in nameList:
+    #     if not name:
+    #         continue
+    #     fileName = filepath + "youtube_" + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
+    #     logging.info(fileName)
+    #     writeCsv(fileName, name)
+
+    # fb数据
+    nameList = fbcollection.distinct("name")
     for name in nameList:
         if not name:
             continue
-        fileName = filepath + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
+        fileName = filepath + "facebook_" + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
         logging.info(fileName)
-        writeCsv(fileName, name)
+        writeCsvFB(fileName, name)
+
     return filepath
 
 

@@ -1,5 +1,6 @@
 import os
 import sys
+from multiprocessing.pool import ThreadPool
 
 import pymongo
 
@@ -44,8 +45,9 @@ blackList = list(blackWhiteCollection.distinct("word", {"isBlack": True}))
 # 白名单列表
 whiteList = list(blackWhiteCollection.distinct("word", {"isWhite": True}))
 
-# 已存在的url
 collection = mongodb["resources"]
+
+invisibleUrl = mongodb["invisibleUrl"]
 
 
 class YouTuBe(object):
@@ -78,7 +80,7 @@ class YouTuBe(object):
                     # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915",
                     "accept-language": "zh-CN,zh;q=0.9"
                 }
-                response = requests.get(url=url, timeout=8, headers=headers, proxies=getIp(), verify=False)
+                response = requests.get(url=url, timeout=3, headers=headers, proxies=getIp(), verify=False)
                 response.encoding = "utf-8"
                 if response.status_code == 200:
                     responseBody = response.text
@@ -87,7 +89,7 @@ class YouTuBe(object):
                     logging.warn("状态码:{},url:{}".format(response.status_code, url))
             except Exception as e:
                 if repr(e).find("timed out") > 0:
-                    logging.error("请求超时,url:{}".format(url))
+                    logging.error("请求超时{}次,url:{}".format(i+1,url))
                 else:
                     logging.error(e)
         if not responseBody:
@@ -115,7 +117,7 @@ class YouTuBe(object):
                     # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915"
                 }
                 # print(headers)
-                response = requests.post(url=self.nextPageUrl, timeout=8, headers=headers, data=self.formData,
+                response = requests.post(url=self.nextPageUrl, timeout=3, headers=headers, data=self.formData,
                                          proxies=getIp(), verify=False)
                 response.encoding = "utf-8"
                 if response.status_code == 200:
@@ -125,7 +127,7 @@ class YouTuBe(object):
                     logging.warn("nextPageUrl:{} 请求失败.statusCode:{}".format(self.nextPageUrl, response.status_code))
             except Exception as e:
                 if repr(e).find("timed out") > 0:
-                    logging.error("请求超时,url:{}".format(self.nextPageUrl))
+                    logging.error("请求超时{}次,url:{}".format(i+1,self.nextPageUrl))
                 else:
                     logging.error(e)
 
@@ -157,14 +159,14 @@ class YouTuBe(object):
             logging.info("获取用户about页面,url:{}   name:{}".format(url + "/about", name))
             for i in range(3):
                 try:
-                    response = requests.get(url=userUrl, headers=headers, timeout=8, proxies=getIp(), verify=False)
+                    response = requests.get(url=userUrl, headers=headers, timeout=3, proxies=getIp(), verify=False)
                     response.encoding = "utf-8"
                     if response.status_code == 200:
                         userItem = self.parsePageUser(response.text, userUrl)
                         break
                 except Exception as e:
                     if repr(e).find("timed out") > 0:
-                        logging.error("请求超时,url:{}".format(userUrl))
+                        logging.error("请求超时{}次,url:{}".format(i+1,userUrl))
                     else:
                         logging.error(e)
 
@@ -174,7 +176,7 @@ class YouTuBe(object):
                 logging.info("获取用户videos页面,url:{}    name:{}".format(url + '/videos', name))
                 for i in range(3):
                     try:
-                        response = requests.get(url=videoUrl, headers=headers, timeout=8, proxies=getIp(),
+                        response = requests.get(url=videoUrl, headers=headers, timeout=3, proxies=getIp(),
                                                 verify=False)
                         response.encoding = "utf-8"
                         if response.status_code == 200:
@@ -182,7 +184,7 @@ class YouTuBe(object):
                             break
                     except Exception as e:
                         if repr(e).find("timed out") > 0:
-                            logging.error("请求超时,url:{}".format(videoUrl))
+                            logging.error("请求超时{}次,url:{}".format(i+1,videoUrl))
                         else:
                             logging.error(e)
                 if videoItem:
@@ -222,9 +224,23 @@ class YouTuBe(object):
         lastUpdateTimeList = jsonpath.jsonpath(response, "$..gridRenderer.items..publishedTimeText.simpleText")
         lastUpdateTimeList = lastUpdateTimeList[:self.videoNum]
         if "年" in lastUpdateTimeList[0]:
+            try:
+                invisibleUrl.insert({
+                    "_id": videoUrl.split("?")[0].replace("/videos", ""),
+                    "url": videoUrl.split("?")[0].replace("/videos", ""),
+                })
+            except Exception as e:
+                pass
             return None
         if "月" in lastUpdateTimeList[0]:
             if int(re.search(r"(\d+)", lastUpdateTimeList[0]).group(1)) > 6:
+                try:
+                    invisibleUrl.insert({
+                        "_id": videoUrl.split("?")[0].replace("/videos", ""),
+                        "url": videoUrl.split("?")[0].replace("/videos", ""),
+                    })
+                except Exception as e:
+                    pass
                 return None
 
         viewCountTextList = jsonpath.jsonpath(response, "$..gridRenderer.items..viewCountText.simpleText")
@@ -242,6 +258,13 @@ class YouTuBe(object):
                 # logging.info(viewCountText)
                 continue
         if int(totalViewCount / len(titleList)) < 2000:
+            try:
+                invisibleUrl.insert({
+                    "_id": videoUrl.split("?")[0].replace("/videos", ""),
+                    "url": videoUrl.split("?")[0].replace("/videos", ""),
+                })
+            except Exception as e:
+                pass
             return None
 
         videoTittle = ""
@@ -286,7 +309,6 @@ class YouTuBe(object):
 
     def parsePageUser(self, response, url):
         try:
-            # print(response)
             responseBody = json.loads(response)
             try:
                 responseText = responseBody[1]
@@ -296,13 +318,17 @@ class YouTuBe(object):
             subscriberCount = self.dealSubscriberCount(responseText)
             if subscriberCount < 5000:
                 logging.error("订阅者数量不超过5000,userUrl:{},订阅人数:{}".format(url.split("?")[0], subscriberCount))
+                try:
+                    invisibleUrl.insert({
+                        "_id": url.split("?")[0].replace("/about", ""),
+                        "url": url.split("?")[0].replace("/about", ""),
+                    })
+                except Exception as e:
+                    pass
                 return None
 
                 # 观看人数
             viewCount = self.dealViewCont(responseText)
-            if viewCount < 5000:
-                logging.error("观看人数不超过5000,userUrl:{},观看人数:{}".format(url.split("?")[0], viewCount))
-                return None
 
             # 评论:内容
             description, descriptionLong = self.dealDescription(responseText)
@@ -548,6 +574,11 @@ class YouTuBe(object):
                     logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
                     continue
 
+                result = invisibleUrl.find_one({"url": url})
+                if result:
+                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
+                    continue
+
                 if name == "服装事业部":
                     # 判断是否在数据库中
                     result = collection.find_one({"part": "clothes", "url": url})
@@ -667,9 +698,15 @@ class YouTuBe(object):
                     urlList.append(userUrl)
 
             for url in urlList:
-                logging.info("name:{},{}".format(name, len(threading.enumerate())))
+                # logging.info("name:{},{}".format(name, len(threading.enumerate())))
+                # logging.info("name:{},{}".format(name, threading.enumerate()))
                 # 判断是否在黑名单中
                 result = blackUrlCollection.find_one({"url": url})
+                if result:
+                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
+                    continue
+
+                result = invisibleUrl.find_one({"url": url})
                 if result:
                     logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
                     continue
@@ -725,14 +762,14 @@ class YouTuBe(object):
             logging.error(traceback.format_exc())
 
 
-def deal(result, youtube, name):
-    keyWord = result["keyWord"]
+def deal(iterableList):
+    keyWord = iterableList[0]["keyWord"]
     try:
-        logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, name))
+        logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, iterableList[2]))
         url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
-        responseBody = youtube.sendRequest(url, keyWord)
+        responseBody = iterableList[1].sendRequest(url, keyWord)
         if responseBody:
-            youtube.parsePage(responseBody, keyWord, name)
+            iterableList[1].parsePage(responseBody, keyWord, iterableList[2])
     except Exception as e:
         logging.error(e)
 
@@ -744,28 +781,27 @@ def dealWord(name):
     while True:
         logging.info("==================name:{}=====================".format(name))
         if name == "袁平":
-            thNUm = 8
+            thNUm = 2
         elif name == "陈慎慎" or name == "周亮":
             thNUm = 2
         else:
-            thNUm = 3
+            thNUm = 2
+
         resultList = list(
             keyWordCollection.find({"resPeople": name, "getData": False}).limit(thNUm))
-        logging.info(resultList)
+        # logging.info(resultList)
         if not resultList:
             logging.error("没有关键字,name:{}".format(name))
             time.sleep(60)
             continue
-        thList = []
+        iterableList = []
         for result in resultList:
-            th = threading.Thread(target=deal, args=(result, youtube, name))
-            thList.append(th)
-
-        for th in thList:
-            th.start()
-
-        for th in thList:
-            th.join()
+            iterableList.append([result, youtube, name])
+        pool = ThreadPool(thNUm)
+        pool.map_async(deal, iterableList)
+        pool.close()
+        pool.join()
+        logging.info(len(threading.enumerate()))
 
         logging.info("结束,name:{}".format(name))
 
@@ -792,6 +828,7 @@ def mainR():
     while True:
         for pro, name in zip(proList, peopleList):
             if not pro.is_alive():
+                logging.warn("进程关闭:name:{},pid:{},proList:{}".format(name, pro.pid, proList))
                 proList.remove(pro)
                 peopleList.remove(name)
                 pro = multiprocessing.Process(target=dealWord, args=(name,))
@@ -799,9 +836,68 @@ def mainR():
                 pro.start()
                 proList.append(pro)
                 peopleList.append(name)
+                logging.info("进程开启:name:{},pid:{},proList:{}".format(name, pro.pid, proList))
         time.sleep(10)
 
 
+def runThreadlanguage(language):
+    youtube = YouTuBe()
+    while True:
+        resultList = list(keyWordCollection.find({"language": language, "getData": False}).limit(1000))
+        if not resultList:
+            logging.error("没有相关关键字,language:{}".format(language))
+            time.sleep(600)
+            continue
+        for result in resultList:
+            keyWord = result["keyWord"]
+            name = result["resPeople"]
+            try:
+                logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, name))
+                url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
+                responseBody = youtube.sendRequest(url, keyWord)
+                if responseBody:
+                    youtube.parsePage(responseBody, keyWord, name)
+            except Exception as e:
+                logging.error(e)
+
+
+def runThreadEnglish(language, name):
+    youtube = YouTuBe()
+    while True:
+        resultList = list(
+            keyWordCollection.find({"language": language, "resPeople": name, "getData": False}).limit(1000))
+
+        if not resultList:
+            logging.error("没有相关关键字,language:{},name:{}".format(language, name))
+            time.sleep(600)
+            continue
+        for result in resultList:
+            keyWord = result["keyWord"]
+            name = result["resPeople"]
+            try:
+                logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, name))
+                url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
+                responseBody = youtube.sendRequest(url, keyWord)
+                if responseBody:
+                    youtube.parsePage(responseBody, keyWord, name)
+            except Exception as e:
+                logging.error(e)
+
+
 if __name__ == '__main__':
-    logging.info("runing")
-    mainR()
+    keyList = keyWordCollection.distinct("language")
+    thlanguageList = []
+    for language in keyList:
+        if language == "英语":
+            keyListLanguage = keyWordCollection.distinct("resPeople", {"language": "英语"})
+            for name in keyListLanguage:
+                th = threading.Thread(target=runThreadEnglish, args=(language, name))
+                th.start()
+        # 按照语言运行
+        else:
+            th = threading.Thread(target=runThreadlanguage, args=(language,))
+            th.start()
+
+    while True:
+        time.sleep(10)
+        pass

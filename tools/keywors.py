@@ -36,7 +36,7 @@ PAGE_SIZE = 500
 
 AD_GROUP_ID = ''
 db = connectMongo(True)
-collection = db["keyWords"]
+collection = db["fbWords"]
 
 langueDict = {
     "波兰":"1030",
@@ -155,35 +155,55 @@ def main(client, keyword, ad_group_id=None):
 
 
 if __name__ == '__main__':
-    ops = open('error.txt', 'a')
-    lines = [lin for lin in csv.reader(open('start.csv', 'r',encoding="gbk"))]
+    with open("start.csv",encoding="gbk") as csvfile:
+        csv_reader = csv.reader(csvfile)  # 使用csv.reader读取csvfile中的文件
+        birth_header = next(csv_reader)  # 读取第一行每一列的标题
+        for row in csv_reader:  # 将csv 文件中的数据保存到birth_data中
+            # print(row)
+            item = {
+                "_id": row[0],
+                "originKey": row[0],
+                "language": row[2],
+                "resPeople": row[4],
+                "category": "",
+                "keyWord": row[0],
+                "hots": 1000,
+                "getData": False,
+            }
+            try:
+                collection.insert(item)
+                print(item)
+            except Exception as e:
+                print(e)
+    # lines = [lin for lin in csv.reader(open('start.csv', 'r',encoding="utf-8"))]
     # for y in lines:
-    #     item = {
-    #         "_id": y[0],
-    #         "originKey": y[0],
-    #         "language": y[2],
-    #         "resPeople": y[4],
-    #         "isGet": False,
-    #         "category": y[1],
-    #         "keyWord": y[0],
-    #         "hots": 99999,
-    #         "getData": False,
-    #     }
+    #     print(y[0])
+        # item = {
+        #     "_id": y[0],
+        #     "originKey": y[0],
+        #     "language": y[2],
+        #     "resPeople": y[4],
+        #     "isGet": False,
+        #     "category": y[1],
+        #     "keyWord": y[0],
+        #     "hots": 99999,
+        #     "getData": False,
+        # }
+        # try:
+        #     collection.insert(item)
+        # except Exception as e:
+        #     print(e)
+
+    # holewd = []
+    #
+    # adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
+    # for y in lines:
+    #     print(y)
     #     try:
-    #         collection.insert(item)
-    #     except Exception as e:
-    #         print(e)
-
-    holewd = []
-
-    adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
-    for y in lines:
-        print(y)
-        try:
-            main(adwords_client, y, int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
-        except:
-            ops.writelines(y)
-            print(traceback.format_exc())
-            print('no')
-            continue
+    #         main(adwords_client, y, int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
+    #     except:
+    #         ops.writelines(y)
+    #         print(traceback.format_exc())
+    #         print('no')
+    #         continue
     # time.sleep(random.randint(40, 60))

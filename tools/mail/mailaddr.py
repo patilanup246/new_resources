@@ -26,6 +26,7 @@ from db.mongodb import connectMongo
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 from python_anticaptcha import AnticaptchaClient, NoCaptchaTaskProxylessTask
 from fake_useragent import UserAgent
+import threading
 
 debug_flag = True if sys.argv[1] == "debug" else False
 mongodb = connectMongo(debug_flag)
@@ -188,26 +189,35 @@ def get_recaptcha_response(channel_url, site_key, session):
         print(e)
 
 
-def take_thread():
+def take_thread(VideoTitleCount):
     while True:
-        threadNum = 10
-        resultList = list(
-            userCollection.find({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,
-                                 "VideoTitleCount": {"$gte": 2}}).limit(threadNum))
+        if VideoTitleCount == 2 or VideoTitleCount == 3 or VideoTitleCount == 4:
+            # resultList = userCollection.find_one(
+            #     {"emailAddress": "", "isRecaptcha": True,"VideoTitleCount": VideoTitleCount})
+            resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"VideoTitleCount": VideoTitleCount})
+        else:
+            resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
+            # resultList = userCollection.find_one({"emailAddress": "", "isRecaptcha": True,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
         if not resultList:
+            # logging.error("目前没有需要处理的数据")
             time.sleep(60)
-        channel_url_list = []
-        for result in resultList:
-            channel_url_list.append(result["url"])
-        pool = ThreadPool(threadNum)
-        pool.map_async(main_process, channel_url_list)
-        pool.close()
-        pool.join()
+            continue
+        try:
+            main_process(resultList["url"])
+        except Exception as e:
+            print(e)
+        # channel_url_list = []
+        # for result in resultList:
+        #     channel_url_list.append(result["url"])
+        # pool = ThreadPool(threadNum)
+        # pool.map_async(main_process, channel_url_list)
+        # pool.close()
+        # pool.join()
 
 
 def main_process(channel_url):
     mail_addr = ""
-    for i in range(2):
+    for i in range(3):
         logging.info("破解邮箱处理中,url:{}".format(channel_url))
         session = requests.Session()
         token, channel_id = get_token_channel(channel_url, session)
@@ -237,11 +247,17 @@ def main_process(channel_url):
             continue
     try:
         userCollection.update({"url": channel_url}, {
-            "$set": {"emailAddress": mail_addr, "isRecaptcha": True}},multi=True)
+            "$set": {"emailAddress": mail_addr, "isRecaptcha": True}}, multi=True)
         logging.info("邮箱新增成功:url:{},  mailaddr:{}".format(channel_url, mail_addr))
     except Exception as e:
         logging.error(e)
 
 
 if __name__ == '__main__':
-    take_thread()
+    for VideoTitleCount in range(5, 22, 2):
+        th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
+        th.start()
+
+    for VideoTitleCount in range(2, 5):
+        th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
+        th.start()

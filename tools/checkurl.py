@@ -23,7 +23,12 @@ def checkUrl(url, domain):
     if url.endswith("/"):
         url = url[:-1]
     urlList = url.split(".com/")
-    url = "http://www.youtube.com/" + urlList[-1]
+    if "youtube" in url:
+        url = "http://www.youtube.com/" + urlList[-1]
+    elif "facebook" in url:
+        url = "http://www.facebook.com/" + urlList[-1]
+    else:
+        return
     # domain = "http://mms.gloapi.com/"
     isExist = True  # 代表存在mms中
     responseBody = sendRequest(url, domain)
@@ -54,7 +59,8 @@ def checkUrl(url, domain):
 
 
 if __name__ == '__main__':
-    checkUrl("https://www.youtube.com/user/AdamRomualdo/")
+    result = checkUrl("https://www.facebook.com/groups/promochina","http://mms.gloapi.com/")
+    print(result)
     # db = connectMongo(True)
     # userCollection = db["userInfo"]
     # resultList = list(userCollection.find({}))
