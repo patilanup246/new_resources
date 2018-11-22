@@ -12,6 +12,7 @@ import time
 
 sys.path.append("./../../")
 from logs.loggerDefine import loggerDefine
+from tools.checkurl import checkMail
 
 youtubeDir = "./../../logs/youtube/"
 if not os.path.exists(youtubeDir):
@@ -189,33 +190,44 @@ def get_recaptcha_response(channel_url, site_key, session):
         print(e)
 
 
-def take_thread(VideoTitleCount):
+def take_thread():
+    # while True:
+    #     if VideoTitleCount == 2 or VideoTitleCount == 3 or VideoTitleCount == 4:
+    #         # resultList = userCollection.find_one(
+    #         #     {"emailAddress": "", "isRecaptcha": True,"VideoTitleCount": VideoTitleCount})
+    #         resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"VideoTitleCount": VideoTitleCount})
+    #     else:
+    #         resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
+    #         # resultList = userCollection.find_one({"emailAddress": "", "isRecaptcha": True,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
+    #     if not resultList:
+    #         # logging.error("目前没有需要处理的数据")
+    #         time.sleep(60)
+    #         continue
+    #     try:
+    #         main_process(resultList["url"])
+    #     except Exception as e:
+    #         print(e)
     while True:
-        if VideoTitleCount == 2 or VideoTitleCount == 3 or VideoTitleCount == 4:
-            # resultList = userCollection.find_one(
-            #     {"emailAddress": "", "isRecaptcha": True,"VideoTitleCount": VideoTitleCount})
-            resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"VideoTitleCount": VideoTitleCount})
-        else:
-            resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
-            # resultList = userCollection.find_one({"emailAddress": "", "isRecaptcha": True,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
+        threadNum = 10
+        resultList = list(
+            userCollection.find({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,
+                                 "VideoTitleCount": {"$gte": 4}}).limit(10))
         if not resultList:
-            # logging.error("目前没有需要处理的数据")
+            logging.error("没有需要获取邮箱的数据")
             time.sleep(60)
             continue
-        try:
-            main_process(resultList["url"])
-        except Exception as e:
-            print(e)
-        # channel_url_list = []
-        # for result in resultList:
-        #     channel_url_list.append(result["url"])
-        # pool = ThreadPool(threadNum)
-        # pool.map_async(main_process, channel_url_list)
-        # pool.close()
-        # pool.join()
+        channel_url_list = []
+        for result in resultList:
+            channel_url_list.append([result["url"], result["part"]])
+        pool = ThreadPool(threadNum)
+        pool.map_async(main_process, channel_url_list)
+        pool.close()
+        pool.join()
 
 
-def main_process(channel_url):
+def main_process(argsList):
+    channel_url = argsList[0]
+    part = argsList[1]
     mail_addr = ""
     for i in range(3):
         logging.info("破解邮箱处理中,url:{}".format(channel_url))
@@ -243,21 +255,40 @@ def main_process(channel_url):
             logging.info("邮箱获取成功,url:{},addr:{}".format(channel_url, mail_addr))
             break
         else:
-            logging.error("邮箱获取失败,url:{}".format(channel_url))
+            logging.error("邮箱获取失败{}次,url:{}".format(i + 1, channel_url))
             continue
     try:
-        userCollection.update({"url": channel_url}, {
-            "$set": {"emailAddress": mail_addr, "isRecaptcha": True}}, multi=True)
-        logging.info("邮箱新增成功:url:{},  mailaddr:{}".format(channel_url, mail_addr))
+        mailExists = False
+        if part == "clothes":
+            if mail_addr:
+                cmmsDomain = "http://cmms.gloapi.com/"
+                isExists = checkMail(mail_addr, cmmsDomain)
+                if isExists:
+                    logging.warn("邮箱存在cmms中,{}".format(mail_addr))
+                    # 代表存在数据库中
+                    mailExists = True
+        if mailExists:
+            # 删除记录
+            userCollection.remove({"url": channel_url, "part": "clothes"})
+            try:
+                userCollection.update({"url": channel_url, "part": "GB"}, {
+                    "$set": {"emailAddress": mail_addr, "isRecaptcha": True}})
+            except Exception as e:
+                logging.error(e)
+        else:
+            userCollection.update({"url": channel_url}, {
+                "$set": {"emailAddress": mail_addr, "isRecaptcha": True}}, multi=True)
+            logging.info("邮箱新增成功:url:{},  mailaddr:{}".format(channel_url, mail_addr))
     except Exception as e:
         logging.error(e)
 
 
 if __name__ == '__main__':
-    for VideoTitleCount in range(5, 22, 2):
-        th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
-        th.start()
-
-    for VideoTitleCount in range(2, 5):
-        th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
-        th.start()
+    take_thread()
+    # for VideoTitleCount in range(5, 22, 2):
+    #     th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
+    #     th.start()
+    #
+    # for VideoTitleCount in range(2, 5):
+    #     th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
+    #     th.start()

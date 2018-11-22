@@ -4,6 +4,10 @@ from multiprocessing.pool import ThreadPool
 
 import pymongo
 
+import gevent
+from gevent import monkey
+
+gevent.monkey.patch_all()
 sys.path.append("./..")
 from tools.getip import getIp
 from logs.loggerDefine import loggerDefine
@@ -15,9 +19,11 @@ loggerFile = youtubeDir + "youtube.log"
 logging = loggerDefine(loggerFile)
 import traceback
 import re
-from tools.checkurl import checkUrl
+from tools.checkurl import checkUrl, checkMail
 from tools.translate.translate_google import mainTranslate
+import sys
 
+sys.setrecursionlimit(1000000)  # 例如这里设置为一百万
 from db.mongodb import connectMongo
 
 import threading
@@ -35,15 +41,18 @@ mongodb = connectMongo(debug_flag)
 # 关键字信息
 keyWordCollection = mongodb["keyWords"]
 
+platId = 1
+
 # 黑白名单
 blackWhiteCollection = mongodb["blackWhite"]
-
-blackUrlCollection = mongodb["blackUrl"]
-
 # 黑名单列表
-blackList = list(blackWhiteCollection.distinct("word", {"isBlack": True}))
+blackList = list(blackWhiteCollection.distinct("word", {"isBlack": True, "platId": 1, "part": "GB"}))
+clothesblackList = list(blackWhiteCollection.distinct("word", {"isBlack": True, "platId": 1, "part": "clothes"}))
 # 白名单列表
-whiteList = list(blackWhiteCollection.distinct("word", {"isWhite": True}))
+whiteList = list(blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 1, "part": "GB"}))
+clotheswhiteList = list(blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 1, "part": "clothes"}))
+zafulWhiltList = list(
+    blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 1, "part": "clothes", "station": "Zaful"}))
 
 collection = mongodb["resources"]
 
@@ -74,13 +83,13 @@ class YouTuBe(object):
                     # "x-spf-previous": "https://www.youtube.com/results?search_query=" + parse.quote(keyWord),
                     # "x-spf-referer": "https://www.youtube.com/results?search_query=" + parse.quote(keyWord),
                     "x-youtube-client-name": "1",
-                    "x-youtube-client-version": "2.20181025",
+                    "x-youtube-client-version": "2.20181204",
                     # "x-youtube-page-cl": "218622685",
                     # "x-youtube-page-label": "youtube.ytfe.desktop_20181024_8_RC0",
                     # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915",
                     "accept-language": "zh-CN,zh;q=0.9"
                 }
-                response = requests.get(url=url, timeout=3, headers=headers, proxies=getIp(), verify=False)
+                response = requests.get(url=url, timeout=5, headers=headers, proxies=getIp(), verify=False)
                 response.encoding = "utf-8"
                 if response.status_code == 200:
                     responseBody = response.text
@@ -89,7 +98,7 @@ class YouTuBe(object):
                     logging.warn("状态码:{},url:{}".format(response.status_code, url))
             except Exception as e:
                 if repr(e).find("timed out") > 0:
-                    logging.error("请求超时{}次,url:{}".format(i+1,url))
+                    logging.error("请求超时{}次,url:{}".format(i + 1, url))
                 else:
                     logging.error(e)
         if not responseBody:
@@ -98,7 +107,8 @@ class YouTuBe(object):
         return responseBody
 
     # 获取下一页信息
-    def sendRequestPost(self, keyWord, name):
+    def sendRequestPost(self, keyWord, name, part, station, nextPageUrl, formData):
+        nextPageUrlnew, formDatanew = "", ""
         for i in range(3):
             try:
                 headers = {
@@ -110,34 +120,30 @@ class YouTuBe(object):
                     # "x-spf-previous": "https://www.youtube.com/results?search_query=" + parse.quote(keyWord),
                     # "x-spf-referer": "https://www.youtube.com/results?search_query=" + parse.quote(keyWord),
                     "x-youtube-client-name": "1",
-                    "x-youtube-client-version": "2.20181025",
+                    "x-youtube-client-version": "2.20181204",
                     # "x-youtube-page-cl": "218622685",
                     # "x-youtube-page-label": "youtube.ytfe.desktop_20181024_8_RC0",
                     # "x-youtube-utc-offset": "480",
                     # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915"
                 }
                 # print(headers)
-                response = requests.post(url=self.nextPageUrl, timeout=3, headers=headers, data=self.formData,
+                response = requests.post(url=nextPageUrl, timeout=5, headers=headers, data=formData,
                                          proxies=getIp(), verify=False)
                 response.encoding = "utf-8"
                 if response.status_code == 200:
-                    self.parseNextPage(response.text, keyWord, name)
+                    nextPageUrlnew, formDatanew = self.parseNextPage(response.text, keyWord, name, part, station)
                     break
                 else:
-                    logging.warn("nextPageUrl:{} 请求失败.statusCode:{}".format(self.nextPageUrl, response.status_code))
+                    logging.warn("nextPageUrl:{} 请求失败.statusCode:{}".format(nextPageUrl, response.status_code))
             except Exception as e:
                 if repr(e).find("timed out") > 0:
-                    logging.error("请求超时{}次,url:{}".format(i+1,self.nextPageUrl))
+                    logging.error("请求超时{}次,url:{}".format(i + 1, nextPageUrl))
                 else:
-                    logging.error(e)
-
-    # 每个用于一个线程
-    def tdSendRequestPost(self, url, keyWord, isDeep=False, round=0):
-        thd = threading.Thread(target=self.sendRequestUser, args=(url, keyWord))
-        thd.start()
+                    logging.error(traceback.format_exc())
+        return nextPageUrlnew, formDatanew
 
     # 获取用户信息
-    def sendRequestUser(self, url, keyWord, name, isDeep=False, round=0):
+    def sendRequestUser(self, url, keyWord, name, part, station):
         try:
             userUrl = url + "/about?pbj=1"
             headers = {
@@ -148,7 +154,7 @@ class YouTuBe(object):
                 # "x-spf-previous": url,
                 # "x-spf-referer": url,
                 "x-youtube-client-name": "1",
-                "x-youtube-client-version": "2.20181025",
+                "x-youtube-client-version": "2.20181204",
                 # "x-youtube-page-cl": "218622685",
                 # "x-youtube-page-label": "youtube.ytfe.desktop_20181024_8_RC0",
                 # "x-youtube-sts": "17829",
@@ -156,35 +162,36 @@ class YouTuBe(object):
                 # "x-youtube-variants-checksum": "80cb024c85d222102f525ddbcc2d0915"
             }
             userItem = {}
-            logging.info("获取用户about页面,url:{}   name:{}".format(url + "/about", name))
+            logging.info("获取用户about页面part:{},url:{},name:{}".format(part, url + "/about", name))
             for i in range(3):
                 try:
-                    response = requests.get(url=userUrl, headers=headers, timeout=3, proxies=getIp(), verify=False)
+                    response = requests.get(url=userUrl, headers=headers, timeout=5, proxies=getIp(), verify=False)
                     response.encoding = "utf-8"
                     if response.status_code == 200:
-                        userItem = self.parsePageUser(response.text, userUrl)
+                        userItem = self.parsePageUser(response.text, userUrl, part, name)
                         break
                 except Exception as e:
                     if repr(e).find("timed out") > 0:
-                        logging.error("请求超时{}次,url:{}".format(i+1,userUrl))
+                        logging.error("请求超时{}次,url:{}".format(i + 1, userUrl))
                     else:
                         logging.error(e)
 
             if userItem:
+                url = userItem["url"]
                 videoUrl = url + "/videos?pbj=1"
                 videoItem = {}
-                logging.info("获取用户videos页面,url:{}    name:{}".format(url + '/videos', name))
+                logging.info("获取用户videos页面part:{},url:{},name:{}".format(part, url + '/videos', name))
                 for i in range(3):
                     try:
-                        response = requests.get(url=videoUrl, headers=headers, timeout=3, proxies=getIp(),
+                        response = requests.get(url=videoUrl, headers=headers, timeout=5, proxies=getIp(),
                                                 verify=False)
                         response.encoding = "utf-8"
                         if response.status_code == 200:
-                            videoItem = self.parsePageVideo(response.text, videoUrl)
+                            videoItem = self.parsePageVideo(response.text, videoUrl, part, station, userItem["url"])
                             break
                     except Exception as e:
                         if repr(e).find("timed out") > 0:
-                            logging.error("请求超时{}次,url:{}".format(i+1,videoUrl))
+                            logging.error("请求超时{}次,url:{}".format(i + 1, videoUrl))
                         else:
                             logging.error(e)
                 if videoItem:
@@ -193,30 +200,39 @@ class YouTuBe(object):
                         item[key] = value
                     for key, value in videoItem.items():
                         item[key] = value
-                    item["_id"] = "1_" + userItem["upTitle"]
-                    item["url"] = url
+                    # item["url"] = url
                     item["keyWord"] = keyWord
-                    item["platId"] = 1
+                    item["platId"] = platId
                     item["csvLoad"] = False
-                    item["isDeep"] = isDeep
+                    item["isDeep"] = False
                     item["isRecaptcha"] = False
                     item["lastUpdate"] = int(time.time())
                     item["name"] = name
-                    if name == "服装事业部":
-                        item["_id"] = "1_clothes_" + item["url"]
-                        item["part"] = "clothes"
-                    else:
-                        item["_id"] = "1_GB_" + item["url"]
-                        item["part"] = "GB"
-                    try:
-                        collection.insert(dict(item))
-                    except Exception as e:
-                        logging.error(e)
+                    item["station"] = station
+                    mailExists = False  # 不存在
+                    emailAddress = item["emailAddress"]
+                    if emailAddress:
+                        if part == "clothes":
+                            if item["VideoTitleCount"] >= 4:
+                                cmmsDomain = "http://cmms.gloapi.com/"
+                                isExists = checkMail(emailAddress, cmmsDomain)
+                                if isExists:
+                                    logging.warn("邮箱存在cmms中,{}".format(emailAddress))
+                                    # 代表存在数据库中
+                                    mailExists = True
+
+                    item["_id"] = "1_" + part + "_" + item["url"]
+                    item["part"] = part
+                    if not emailAddress:
+                        try:
+                            collection.insert(dict(item))
+                        except Exception as e:
+                            logging.error(e)
         except Exception as e:
             logging.exception(e)
 
     # 视频信息
-    def parsePageVideo(self, response, videoUrl):
+    def parsePageVideo(self, response, videoUrl, part, station, userUrl):
         response = json.loads(response)
         titleList = jsonpath.jsonpath(response, "$..gridRenderer.items..title..simpleText")
         # 取8个
@@ -226,8 +242,11 @@ class YouTuBe(object):
         if "年" in lastUpdateTimeList[0]:
             try:
                 invisibleUrl.insert({
-                    "_id": videoUrl.split("?")[0].replace("/videos", ""),
-                    "url": videoUrl.split("?")[0].replace("/videos", ""),
+                    "_id": str(platId) + "_" + userUrl,
+                    "url": userUrl,
+                    "platId": platId,
+                    "insertTime": int(time.time()),
+                    "titleLastUpdateTime": lastUpdateTimeList[0]
                 })
             except Exception as e:
                 pass
@@ -236,11 +255,14 @@ class YouTuBe(object):
             if int(re.search(r"(\d+)", lastUpdateTimeList[0]).group(1)) > 6:
                 try:
                     invisibleUrl.insert({
-                        "_id": videoUrl.split("?")[0].replace("/videos", ""),
-                        "url": videoUrl.split("?")[0].replace("/videos", ""),
+                        "_id": str(platId) + "_" + userUrl,
+                        "url": userUrl,
+                        "platId": platId,
+                        "insertTime": int(time.time()),
+                        "titleLastUpdateTime": lastUpdateTimeList[0]
                     })
                 except Exception as e:
-                    pass
+                    logging.error(traceback.format_exc())
                 return None
 
         viewCountTextList = jsonpath.jsonpath(response, "$..gridRenderer.items..viewCountText.simpleText")
@@ -257,16 +279,20 @@ class YouTuBe(object):
             except Exception as e:
                 # logging.info(viewCountText)
                 continue
-        if int(totalViewCount / len(titleList)) < 2000:
-            try:
-                invisibleUrl.insert({
-                    "_id": videoUrl.split("?")[0].replace("/videos", ""),
-                    "url": videoUrl.split("?")[0].replace("/videos", ""),
-                })
-            except Exception as e:
-                pass
+        if int(totalViewCount / len(titleList)) < 4000:
+            logging.error("播放量低于4000,url:{}".format(userUrl))
+            if int(totalViewCount / len(titleList)) < 3000:
+                try:
+                    invisibleUrl.insert({
+                        "_id": str(platId) + "_" + userUrl,
+                        "url": userUrl,
+                        "platId": platId,
+                        "insertTime": int(time.time()),
+                        "viewCountAvg": int(totalViewCount / len(titleList))
+                    })
+                except Exception as e:
+                    logging.error(e)
             return None
-
         videoTittle = ""
         for title, lastUpdateTime, viewCount in zip(titleList, lastUpdateTimeList, viewCountList):
             videoTittle += title + "\n"
@@ -277,15 +303,21 @@ class YouTuBe(object):
             videoTittleChinese = mainTranslate(videoTittle)
         VideoTitleCount = 0
         whiteWord = ""
-        for word in whiteList:
+        if part == "GB":
+            whiteListall = whiteList
+        else:
+            whiteListall = clotheswhiteList
+            if station == "Zaful":
+                whiteListall = zafulWhiltList
+        for word in whiteListall:
             if word.lower() in videoTittle.lower() or word.lower() in videoTittleChinese.lower():
                 VideoTitleCount += 1
                 # logging.info(word)
                 word_new = word + " "
                 whiteWord += word_new
 
-        logging.error("匹配度大于等于{}分,videoUrl:{},匹配单词:{}".format(self.VideoTitleCount, videoUrl.split("?")[0],
-                                                              whiteWord.strip()))
+        logging.error("part:{},匹配度等于{}分,videoUrl:{},匹配单词:{}".format(part, VideoTitleCount, userUrl,
+                                                                    whiteWord.strip()))
         try:
             titleFirst = videoTittleChinese.split("\n")[0]
         except Exception as e:
@@ -298,6 +330,7 @@ class YouTuBe(object):
 
         item = {
             "videoTittle": videoTittleChinese,
+            "videotitleUn": videoTittle,
             "viewCountAvg": int(totalViewCount / len(titleList)),
             "titleLastUpdateTime": lastUpdateTimeList[0],
             "whiteWord": whiteWord.strip(),
@@ -307,24 +340,89 @@ class YouTuBe(object):
         }
         return item
 
-    def parsePageUser(self, response, url):
+    def parsePageUser(self, response, url, part, name):
         try:
             responseBody = json.loads(response)
             try:
                 responseText = responseBody[1]
             except Exception as e:
                 return None
+            # 获取url
+            try:
+                urlList = jsonpath.jsonpath(responseBody, "$..ownerUrls")[0]
+            except Exception as e:
+                logging.error(e)
+                return None
+            userurl = ""
+            for i in urlList:
+                if "www.youtube.com" not in i:
+                    continue
+                userurl = "https://" + i.split("://")[-1]
+            if not userurl:
+                return None
+            result = invisibleUrl.find_one({"url": userurl, "platId": platId})
+            if result:
+                logging.warn("观看量或者订阅量未达目标,part:{},name:{},url:{}".format(part, name, userurl))
+                return None
+
+            # 判断是否在数据库中
+            result = collection.find_one({"part": part, "url": userurl, "platId": platId})
+            if result:
+                logging.warn("存在库中part:{},name:{},url:{}".format(part, name, userurl))
+                return None
+
+            if part == "clothes":
+                # 判断是否在cmms中
+                domain = "http://cmms.gloapi.com/"
+                isExists = checkUrl(userurl, domain)
+                if isExists:
+                    try:
+                        collection.insert({
+                            "_id": str(platId) + "_" + part + "_" + userurl,
+                            "url": userurl,
+                            "platId": platId,
+                            "part": part,
+                            "lastUpdate": int(time.time())
+                        })
+                        logging.warn("存在cmms中part:{},name:{},url:{}".format(part, name, userurl))
+                    except Exception as e:
+                        logging.error(e)
+                    # 代表存在接口中
+                    return None
+            elif part == "GB":
+                # 判断是否在mms中
+                domain = "http://mms.gloapi.com/"
+                isExists = checkUrl(userurl, domain)
+                if isExists:
+                    try:
+                        collection.insert({
+                            "_id": str(platId) + "_" + part + "_" + userurl,
+                            "url": userurl,
+                            "platId": platId,
+                            "part": part,
+                            "lastUpdate": int(time.time())
+                        })
+                        logging.warn("存在mms中part:{},name:{},url:{}".format(part, name, userurl))
+                    except Exception as e:
+                        logging.error(e)
+                    # 代表存在接口中
+                    return None
+
             # 订阅者数量
             subscriberCount = self.dealSubscriberCount(responseText)
             if subscriberCount < 5000:
-                logging.error("订阅者数量不超过5000,userUrl:{},订阅人数:{}".format(url.split("?")[0], subscriberCount))
-                try:
-                    invisibleUrl.insert({
-                        "_id": url.split("?")[0].replace("/about", ""),
-                        "url": url.split("?")[0].replace("/about", ""),
-                    })
-                except Exception as e:
-                    pass
+                logging.error("订阅者数量不超过5000,userUrl:{},订阅人数:{}".format(userurl, subscriberCount))
+                if subscriberCount < 4000:
+                    try:
+                        invisibleUrl.insert({
+                            "_id": str(platId) + "_" + userurl,
+                            "url": userurl,
+                            "platId": platId,
+                            "insertTime": int(time.time()),
+                            "subscriberCount": subscriberCount
+                        })
+                    except Exception as e:
+                        logging.error(e)
                 return None
 
                 # 观看人数
@@ -334,58 +432,30 @@ class YouTuBe(object):
             description, descriptionLong = self.dealDescription(responseText)
             isBlack = False
             blackWord = ""
-            for word in blackList:
-                if word in description:
-                    blackWord = word
-                    isBlack = True
-                    break
-            if isBlack:
-                try:
-                    blackUrlCollection.insert({
-                        "_id": url.split("?")[0].replace("/about", ""),
-                        "url": url.split("?")[0].replace("/about", ""),
-                        "blackword": blackWord
-                    })
-                except Exception as e:
-                    pass
-                logging.error("处于非中文黑名单中,名词:{},userUrl:{}".format(blackWord, url.split("?")[0]))
-                return None
+            if part == "GB":
+                blackListall = blackList
+            else:
+                blackListall = clothesblackList
             # 翻译成中文
             if not description.strip():
                 descriptionChinese = ""
             else:
                 descriptionChinese = mainTranslate(description)
             # descriptionChinese = youdao(description)
-
-            isBlack = False
             blackWord = ""
-            for word in blackList:
-                if word in descriptionChinese:
-                    blackWord = word
-                    isBlack = True
-                    break
-            if isBlack:
-                try:
-                    blackUrlCollection.insert({
-                        "_id": url.split("?")[0].replace("/about", ""),
-                        "url": url.split("?")[0].replace("/about", ""),
-                        "blackword": blackWord
-                    })
-                except Exception as e:
-                    pass
-                logging.error("处于中文黑名单中,名词:{},userUrl:{}".format(blackWord, url.split("?")[0]))
-                return None
+            blackWordCount = 0
+            for word in blackListall:
+                if word in description or word in descriptionChinese:
+                    blackWord += word + ""
+                    blackWordCount += 1
+            blackWord = blackWord.strip()
 
-            # logging.info(description)
-
-            emailAddress = re.findall("(\w+@\S+.\w+)", descriptionLong)
-            if not emailAddress:
-                # print(description)
+            # emailAddress = re.findall("(\w+@\S+.\w+)", descriptionLong)
+            pattern = re.compile(r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}\b')
+            try:
+                emailAddress = re.search(pattern, descriptionLong).group()
+            except Exception as e:
                 emailAddress = ""
-            else:
-                emailAddress = emailAddress[0]
-                if emailAddress.endswith("."):
-                    emailAddress = emailAddress.strip()
 
             # 国家
             country = self.dealCountry(responseText)
@@ -405,6 +475,7 @@ class YouTuBe(object):
             UserItem = {
                 "subscriberCount": subscriberCount,
                 "description": descriptionChinese,
+                "descriptionUn": descriptionLong,
                 "country": country,
                 "viewCount": viewCount,
                 "upTitle": upTitle,
@@ -414,6 +485,9 @@ class YouTuBe(object):
                 "emailAddress": emailAddress,
                 "isMail": businessEmail,
                 "relateChannel": relateChannel.strip(),
+                "url": userurl,  # blackWord = ""  blackWordCount = 0
+                "blackWord": blackWord,
+                "blackWordCount": blackWordCount
             }
         except Exception as e:
             logging.error(traceback.format_exc())
@@ -525,7 +599,7 @@ class YouTuBe(object):
         return subscriberCount
 
     # 首页信息解析
-    def parsePage(self, response, keyWord, name):
+    def parsePage(self, response, keyWord, name, part, station):
         global debug_flag
         try:
             logging.info("获取下一页链接,keyWord:{}  name:{}".format(keyWord, name))
@@ -547,9 +621,9 @@ class YouTuBe(object):
             # nextPageUrl
             nextPageUrl = jsonpath.jsonpath(response, "$..endpoint.urlEndpoint.url")[0]
             # nextPageUrl = response["endpoint"]["urlEndpoint"]["url"]
-            self.nextPageUrl = "https://www.youtube.com" + nextPageUrl + "&pbj=1" + "&ctoken=" + continuation + "&itct=" + continuation
+            nextPageUrl = "https://www.youtube.com" + nextPageUrl + "&pbj=1" + "&ctoken=" + continuation + "&itct=" + continuation
             logging.info("获取下一页链接成功,keyWord:{}".format(keyWord))
-            self.formData = {
+            formData = {
                 "session_token": token
             }
 
@@ -560,97 +634,94 @@ class YouTuBe(object):
                     videoRenderer = content.get("channelRenderer")
                     if not videoRenderer:
                         continue
-
-                userUrl = "https://www.youtube.com" + \
-                          videoRenderer["shortBylineText"]["runs"][0]["navigationEndpoint"]["commandMetadata"][
-                              "webCommandMetadata"]["url"]
+                try:
+                    userUrl = "https://www.youtube.com" + \
+                              videoRenderer["shortBylineText"]["runs"][0]["navigationEndpoint"]["commandMetadata"][
+                                  "webCommandMetadata"]["url"]
+                except Exception as e:
+                    continue
                 if userUrl not in urlList:
                     urlList.append(userUrl)
 
+            gList = []
             for url in urlList:
-                # 判断是否在黑名单中
-                result = blackUrlCollection.find_one({"url": url})
+                result = invisibleUrl.find_one({"url": url, "platId": platId})
                 if result:
-                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
+                    logging.warn("观看量或者订阅量未达目标,part:{},name:{},url:{}".format(part, name, url))
                     continue
 
-                result = invisibleUrl.find_one({"url": url})
+                # 判断是否在数据库中
+                result = collection.find_one({"part": part, "url": url, "platId": platId})
                 if result:
-                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
+                    logging.warn("存在库中part:{},name:{},url:{}".format(part, name, url))
                     continue
 
-                if name == "服装事业部":
-                    # 判断是否在数据库中
-                    result = collection.find_one({"part": "clothes", "url": url})
-                    if result:
-                        logging.warn("存在库中,name:{},url:{}".format(name, url))
-                        continue
-
+                if part == "clothes":
                     # 判断是否在cmms中
                     domain = "http://cmms.gloapi.com/"
                     isExists = checkUrl(url, domain)
                     if isExists:
                         try:
                             collection.insert({
-                                "_id": "1_clothes_" + url,
+                                "_id": str(platId) + "_" + part + "_" + url,
                                 "url": url,
-                                "platId": 1,
-                                "part": "clothes"
+                                "platId": platId,
+                                "part": part,
+                                "lastUpdate": int(time.time())
                             })
-                            logging.warn("存在cmms中,name:{},url:{}".format(name, url))
+                            logging.warn("存在cmms中part:{},name:{},url:{}".format(part, name, url))
                         except Exception as e:
                             logging.error(e)
                         # 代表存在接口中
                         continue
-                else:
-                    # 判断是否在数据库中
-                    result = collection.find_one({"part": "GB", "url": url})
-                    if result:
-                        logging.warn("存在库中,name:{},url:{}".format(name, url))
-                        continue
-
+                elif part == "GB":
                     # 判断是否在mms中
                     domain = "http://mms.gloapi.com/"
                     isExists = checkUrl(url, domain)
                     if isExists:
                         try:
                             collection.insert({
-                                "_id": "1_GB_" + url,
+                                "_id": str(platId) + "_" + part + "_" + url,
                                 "url": url,
-                                "platId": 1,
-                                "part": "GB"
+                                "platId": platId,
+                                "part": part,
+                                "lastUpdate": int(time.time())
                             })
-                            logging.warn("存在mms中,name:{},url:{}".format(name, url))
+                            logging.warn("存在mms中part:{},name:{},url:{}".format(part, name, url))
                         except Exception as e:
                             logging.error(e)
                         # 代表存在接口中
                         continue
-                self.sendRequestUser(url, keyWord, name)
-            self.GetNextWhile(keyWord, name)
+                self.sendRequestUser(url, keyWord, name, part, station)
+            self.GetNextWhile(keyWord, name, part, station, nextPageUrl, formData)
         except Exception as e:
             logging.error(traceback.format_exc())
-            self.changeWordStatus(keyWord)
+            self.changeWordStatus(keyWord, part, station)
 
     # 循环获取下一页信息
-    def GetNextWhile(self, keyWord, name):
+    def GetNextWhile(self, keyWord, name, part, station, nextPageUrl, formData):
+        nextPageUrlnew, formDatanew = self.sendRequestPost(keyWord, name, part, station, nextPageUrl, formData)
         i = 0
         while i < self.pageNum:
             i += 1
-            # logging.info("time sleep 5s")
-            # time.sleep(5)
-            self.sendRequestPost(keyWord, name)
+            nextPageUrlnew, formDatanew = self.sendRequestPost(keyWord, name, part, station, nextPageUrl, formData)
+            if not nextPageUrlnew or not formDatanew:
+                logging.error("没有下一页")
+                break
 
-        self.changeWordStatus(keyWord)
+        self.changeWordStatus(keyWord, part, station)
 
-    def changeWordStatus(self, keyWord):
+    def changeWordStatus(self, keyWord, part, station):
         try:
-            keyWordCollection.update_one({"_id": keyWord}, {"$set": {"getData": True}})
+            keyWordCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part, "station": station},
+                                         {"$set": {"getData": True}})
             logging.info("关键字:{} 状态改为已经抓取状态".format(keyWord))
         except Exception as e:
             logging.error(e)
 
     # 解析下一页信息
-    def parseNextPage(self, response, keyWord, name):
+    def parseNextPage(self, response, keyWord, name, part, station):
+        nextPageUrl, formData = "", ""
         global debug_flag
         try:
             response = json.loads(response)
@@ -679,9 +750,9 @@ class YouTuBe(object):
             # logging.info(response["endpoint"]["urlEndpoint"])
             nextPageUrl = response["endpoint"]["urlEndpoint"]["url"].split("&")[0]
 
-            self.nextPageUrl = "https://www.youtube.com" + nextPageUrl + "&pbj=1" + "&ctoken=" + continuation + "&itct=" + continuation
+            nextPageUrl = "https://www.youtube.com" + nextPageUrl + "&pbj=1" + "&ctoken=" + continuation + "&itct=" + continuation
             logging.info("获取下一页链接成功,keyWord:{}".format(keyWord))
-            self.formData = {
+            formData = {
                 "session_token": token
             }
 
@@ -690,160 +761,76 @@ class YouTuBe(object):
                 videoRenderer = content.get("videoRenderer")
                 if not videoRenderer:
                     continue
-                userUrl = "https://www.youtube.com" + \
-                          videoRenderer["shortBylineText"]["runs"][0]["navigationEndpoint"]["commandMetadata"][
-                              "webCommandMetadata"]["url"]
+                try:
+                    userUrl = "https://www.youtube.com" + \
+                              videoRenderer["shortBylineText"]["runs"][0]["navigationEndpoint"]["commandMetadata"][
+                                  "webCommandMetadata"]["url"]
+                except Exception as e:
+                    continue
 
                 if userUrl not in urlList:
                     urlList.append(userUrl)
 
+            gList = []
             for url in urlList:
-                # logging.info("name:{},{}".format(name, len(threading.enumerate())))
-                # logging.info("name:{},{}".format(name, threading.enumerate()))
-                # 判断是否在黑名单中
-                result = blackUrlCollection.find_one({"url": url})
+                result = invisibleUrl.find_one({"url": url, "platId": platId})
                 if result:
-                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
+                    logging.warn("观看量或者订阅量未达目标,part:{},name:{},url:{}".format(part, name, url))
                     continue
 
-                result = invisibleUrl.find_one({"url": url})
+                # 判断是否在数据库中
+                result = collection.find_one({"part": part, "url": url, "platId": platId})
                 if result:
-                    logging.warn("存在黑名单中,name:{},url:{}".format(name, url))
+                    logging.warn("存在库中part:{},name:{},url:{}".format(part, name, url))
                     continue
 
-                if name == "服装事业部":
-                    # 判断是否在数据库中
-                    result = collection.find_one({"part": "clothes", "url": url})
-                    if result:
-                        logging.warn("存在库中,name:{},url:{}".format(name, url))
-                        continue
-
+                if part == "clothes":
                     # 判断是否在cmms中
                     domain = "http://cmms.gloapi.com/"
                     isExists = checkUrl(url, domain)
                     if isExists:
                         try:
                             collection.insert({
-                                "_id": "1_clothes_" + url,
+                                "_id": str(platId) + "_" + part + "_" + url,
                                 "url": url,
-                                "platId": 1,
-                                "part": "clothes"
+                                "platId": platId,
+                                "part": part,
+                                "lastUpdate": int(time.time())
                             })
-                            logging.warn("存在cmms中,name:{},url:{}".format(name, url))
+                            logging.warn("存在cmms中part:{},name:{},url:{}".format(part, name, url))
                         except Exception as e:
                             logging.error(e)
                         # 代表存在接口中
                         continue
                 else:
-                    # 判断是否在数据库中
-                    result = collection.find_one({"part": "GB", "url": url})
-                    if result:
-                        logging.warn("存在库中,name:{},url:{}".format(name, url))
-                        continue
-
                     # 判断是否在mms中
                     domain = "http://mms.gloapi.com/"
                     isExists = checkUrl(url, domain)
                     if isExists:
                         try:
                             collection.insert({
-                                "_id": "1_GB_" + url,
+                                "_id": str(platId) + "_" + part + "_" + url,
                                 "url": url,
-                                "platId": 1,
-                                "part": "GB"
+                                "platId": platId,
+                                "part": part,
+                                "lastUpdate": int(time.time())
                             })
                             logging.warn("存在mms中,name:{},url:{}".format(name, url))
                         except Exception as e:
                             logging.error(e)
                         # 代表存在接口中
                         continue
-                self.sendRequestUser(url, keyWord, name)
+                self.sendRequestUser(url, keyWord, name, part, station)
         except Exception as e:
             logging.error(traceback.format_exc())
 
-
-def deal(iterableList):
-    keyWord = iterableList[0]["keyWord"]
-    try:
-        logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, iterableList[2]))
-        url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
-        responseBody = iterableList[1].sendRequest(url, keyWord)
-        if responseBody:
-            iterableList[1].parsePage(responseBody, keyWord, iterableList[2])
-    except Exception as e:
-        logging.error(e)
-
-
-def dealWord(name):
-    startThredNum = len(threading.enumerate())
-    logging.info("起始线程:{}".format(startThredNum))
-    youtube = YouTuBe()
-    while True:
-        logging.info("==================name:{}=====================".format(name))
-        if name == "袁平":
-            thNUm = 2
-        elif name == "陈慎慎" or name == "周亮":
-            thNUm = 2
-        else:
-            thNUm = 2
-
-        resultList = list(
-            keyWordCollection.find({"resPeople": name, "getData": False}).limit(thNUm))
-        # logging.info(resultList)
-        if not resultList:
-            logging.error("没有关键字,name:{}".format(name))
-            time.sleep(60)
-            continue
-        iterableList = []
-        for result in resultList:
-            iterableList.append([result, youtube, name])
-        pool = ThreadPool(thNUm)
-        pool.map_async(deal, iterableList)
-        pool.close()
-        pool.join()
-        logging.info(len(threading.enumerate()))
-
-        logging.info("结束,name:{}".format(name))
-
-
-def mainR():
-    peopleList = [
-        "周亮",
-        "袁平",
-        "陈慎慎",
-        "服装事业部",
-        # "林冰",
-        # "杨萌琳",
-        # "尚艳飞",
-        # "肖璐",
-        # "何欢欢"
-    ]
-    proList = []
-    for name in peopleList:
-        pro = multiprocessing.Process(target=dealWord, args=(name,))
-        pro.daemon = True
-        pro.start()
-        proList.append(pro)
-
-    while True:
-        for pro, name in zip(proList, peopleList):
-            if not pro.is_alive():
-                logging.warn("进程关闭:name:{},pid:{},proList:{}".format(name, pro.pid, proList))
-                proList.remove(pro)
-                peopleList.remove(name)
-                pro = multiprocessing.Process(target=dealWord, args=(name,))
-                pro.daemon = True
-                pro.start()
-                proList.append(pro)
-                peopleList.append(name)
-                logging.info("进程开启:name:{},pid:{},proList:{}".format(name, pro.pid, proList))
-        time.sleep(10)
+        return nextPageUrl, formData
 
 
 def runThreadlanguage(language):
     youtube = YouTuBe()
     while True:
-        resultList = list(keyWordCollection.find({"language": language, "getData": False}).limit(1000))
+        resultList = list(keyWordCollection.find({"language": language, "getData": False, "platId": 1}).limit(1000))
         if not resultList:
             logging.error("没有相关关键字,language:{}".format(language))
             time.sleep(600)
@@ -851,12 +838,13 @@ def runThreadlanguage(language):
         for result in resultList:
             keyWord = result["keyWord"]
             name = result["resPeople"]
+            part = result["part"]
             try:
-                logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, name))
+                logging.info("beggin to deal with keyWord:{},name:{},part:{}".format(keyWord, name, part))
                 url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
                 responseBody = youtube.sendRequest(url, keyWord)
                 if responseBody:
-                    youtube.parsePage(responseBody, keyWord, name)
+                    youtube.parsePage(responseBody, keyWord, name, part)
             except Exception as e:
                 logging.error(e)
 
@@ -864,40 +852,52 @@ def runThreadlanguage(language):
 def runThreadEnglish(language, name):
     youtube = YouTuBe()
     while True:
+        if name == "郭倩":
+            num = 10
+        else:
+            num = 10
         resultList = list(
-            keyWordCollection.find({"language": language, "resPeople": name, "getData": False}).limit(1000))
-
+            keyWordCollection.find({"language": language, "resPeople": name, "getData": False, "platId": 1}).limit(
+                num).sort([('insertTime', pymongo.DESCENDING)]))
         if not resultList:
             logging.error("没有相关关键字,language:{},name:{}".format(language, name))
             time.sleep(600)
             continue
+        gList = []
         for result in resultList:
-            keyWord = result["keyWord"]
-            name = result["resPeople"]
-            try:
-                logging.info("beggin to deal with keyWord:{}   name:{}".format(keyWord, name))
-                url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
-                responseBody = youtube.sendRequest(url, keyWord)
-                if responseBody:
-                    youtube.parsePage(responseBody, keyWord, name)
-            except Exception as e:
-                logging.error(e)
+            # dealkeyWord(result,youtube)
+            g = gevent.spawn(dealkeyWord, result, youtube)
+            gList.append(g)
+        for g in gList:
+            g.join()
+
+
+def dealkeyWord(result, youtube):
+    keyWord = result["keyWord"]
+    name = result["resPeople"]
+    part = result["part"]
+    station = result["station"]
+    try:
+        logging.info("beggin to deal with keyWord:{},name:{},part:{},station:{}".format(keyWord, name, part, station))
+        url = "https://www.youtube.com/results?search_query=" + parse.quote(keyWord) + "&pbj=1"
+        responseBody = youtube.sendRequest(url, keyWord)
+        if responseBody:
+            youtube.parsePage(responseBody, keyWord, name, part, station)
+    except Exception as e:
+        logging.error(e)
 
 
 if __name__ == '__main__':
-    keyList = keyWordCollection.distinct("language")
-    thlanguageList = []
+    # runThreadEnglish("法国","王姣")
+    keyList = keyWordCollection.distinct("language", {"platId": 1, "getData": False, "part": "clothes"})
     for language in keyList:
-        if language == "英语":
-            keyListLanguage = keyWordCollection.distinct("resPeople", {"language": "英语"})
-            for name in keyListLanguage:
-                th = threading.Thread(target=runThreadEnglish, args=(language, name))
-                th.start()
-        # 按照语言运行
-        else:
-            th = threading.Thread(target=runThreadlanguage, args=(language,))
+        # 英语按照人员开线程
+        # if language == "英语":
+        keyListLanguage = keyWordCollection.distinct("resPeople", {"language": language, "platId": 1, "getData": False,
+                                                                   "part": "clothes"})
+        for name in keyListLanguage:
+            th = threading.Thread(target=runThreadEnglish, args=(language, name))
             th.start()
-
     while True:
         time.sleep(10)
         pass

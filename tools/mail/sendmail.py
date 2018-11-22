@@ -53,7 +53,8 @@ def send_email(to_addr_in, filepath_in):
     filepath = filepath_in
     r = os.path.exists(filepath)
     if r is False:
-        msg.attach(MIMEText('今日无数据', 'plain', 'utf-8'))
+
+        return
     else:
         # 邮件正文是MIMEText:
         msg.attach(MIMEText('请按照自己的文件下载', 'plain', 'utf-8'))
@@ -92,6 +93,10 @@ def send_email(to_addr_in, filepath_in):
 
 
 if __name__ == '__main__':
+    # filepath = getName()
+    # # to_addr_in = 'huguangjing@globalegrow.com,1132372453@qq.com'
+    # to_addr_in = "huguangjing@globalegrow.com"
+    # send_email(to_addr_in, filepath)
     logging.info("running")
     while True:
         today = datetime.now()
@@ -99,7 +104,7 @@ if __name__ == '__main__':
             logging.info("时间到 即将读取文件")
             filepath = getName()
             # to_addr_in = 'huguangjing@globalegrow.com,1132372453@qq.com'
-            to_addr_in = "huguangjing@globalegrow.com,zhouliang1@globalegrow.com,linbing@globalegrow.com,chenshenshen@globalegrow.com,aff.fr@gearbest.com,wuzerong@globalegrow.com"
+            to_addr_in = "huguangjing@globalegrow.com,zhouliang1@globalegrow.com,linbing@globalegrow.com,chenshenshen@globalegrow.com,aff.fr@gearbest.com,wuzerong@globalegrow.com,guokaixi@globalegrow.com,duanjiamin@globalegrow.com,baiwenxiu@globalegrow.com,guoqian@globalegrow.com,amelia.h@globalegrow.com,yangmenglin@globalegrow.com,xiaolu2@globalegrow.com,sara@globaegrow.com"
             send_email(to_addr_in, filepath)
             time.sleep(3600)
         time.sleep(30)

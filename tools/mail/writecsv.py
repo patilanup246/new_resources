@@ -3,6 +3,10 @@ import traceback
 import os
 from datetime import datetime
 # 初始化数据库
+import sys
+
+sys.path.append("./../..")
+
 from db.mongodb import connectMongo
 from datetime import datetime
 import logging
@@ -15,6 +19,8 @@ database = "globalegrow"
 table = "resources"
 db_des_table = db[table]
 fbcollection = db["fbresources"]
+webcollection = db["webResources"]
+test = db["test"]
 
 
 # 将数据写入到CSV文件中
@@ -45,7 +51,7 @@ def writeCsv(file, name):
             # 写入多行数据
             for record in allRecordRes:
                 if record["name"] == "袁平":
-                    if record["VideoTitleCount"] >= 2 and record["isMail"] and record["emailAddress"] == "":
+                    if record["VideoTitleCount"] >= 4 and record["isMail"] and record["emailAddress"] == "":
                         if not record["isRecaptcha"]:
                             continue
                 else:
@@ -79,10 +85,13 @@ def writeCsvFB(file, name):
     try:
         with open(file, "w", newline='', encoding="utf_8_sig") as csvfileWriter:
             writer = csv.writer(csvfileWriter)
-            fieldList = ["keyWord", "name", "manager", "groupType", "postNum", "groupName", "url", "groupNum",
+            fieldList = ["keyWord", "name", "language", "manager", "groupType", "postNum", "groupName", "url",
+                         "groupNum",
                          "description"]
             writer.writerow(fieldList)
-            allRecordRes = mongoQuery(fbcollection, {"csvLoad": False, "name": name, "postNum": {"$gte": 50}})
+            allRecordRes = mongoQuery(fbcollection, {
+                "csvLoad": False,
+                "name": name, "postNum": {"$gte": 50}})
             logging.info("总共数据量:{}".format(len(allRecordRes)))
             if len(allRecordRes) == 0:
                 os.remove(file)
@@ -93,13 +102,6 @@ def writeCsvFB(file, name):
                 if not record["groupName"]:
                     continue
 
-                if record["language"] == "英语":
-                    if record["postNum"] < 100:
-                        continue
-                else:
-                    if record["postNum"] < 50:
-                        continue
-
                 recordValueLst = []
                 try:
                     for field in list(fieldList):
@@ -108,11 +110,76 @@ def writeCsvFB(file, name):
                         else:
                             recordValueLst.append(record[field])
                     try:
+                        print(recordValueLst)
                         writer.writerow(recordValueLst)
                     except Exception as e:
                         print(e)
                     try:
                         fbcollection.update_one({"_id": record["_id"]}, {"$set": {"csvLoad": True}})
+                    except Exception as e:
+                        return None
+                except Exception as e:
+                    print(traceback.format_exc())
+    except Exception as e:
+        logging.error(traceback.format_exc())
+
+
+def writeCsvWEB(file, name):
+    try:
+        with open(file, "w", newline='', encoding="utf_8_sig") as csvfileWriter:
+            writer = csv.writer(csvfileWriter)
+            fieldList = ["url",
+                         "part",
+                         "whiteNum",
+                         "whiteStr",
+                         "title",
+                         "desc",
+                         "titleChinese",
+                         "emailStr",
+                         "facebook",
+                         "instagram",
+                         "youtube",
+                         "twitter",
+                         "viewCount",
+                         "country",
+                         "percent",
+                         "cms",
+                         "cmms",
+                         "relateLinkSimilarSites",
+                         "globalRankAlexa",
+                         "countryAlexa",
+                         "countryRankAlexa",
+                         "relateLinksAlexa",
+                         "connect",
+                         "status",
+                         "firstName",
+                         "lastName",
+                         "sourcePage",
+                         "position"
+                         ]
+            writer.writerow(fieldList)
+            allRecordRes = list(webcollection.find({"emailStr": {"$ne": ""}, "csvLoad": False}))
+            logging.info("总共数据量:{}".format(len(allRecordRes)))
+            if len(allRecordRes) == 0:
+                os.remove(file)
+                return
+
+            # 写入多行数据
+            for record in allRecordRes:
+                recordValueLst = []
+                try:
+                    for field in list(fieldList):
+                        if field not in record.keys():
+                            recordValueLst.append("None")
+                        else:
+                            recordValueLst.append(record[field])
+                    try:
+                        print(recordValueLst)
+                        writer.writerow(recordValueLst)
+                    except Exception as e:
+                        print(e)
+                    try:
+                        webcollection.update_one({"_id": record["_id"]}, {"$set": {"csvLoad": True}}, upsert=True)
                     except Exception as e:
                         return None
                 except Exception as e:
@@ -127,23 +194,31 @@ def getName():
                                                                                               today.day)
     if not os.path.exists(filepath):
         os.makedirs(filepath)
-    # youtube数据
-    # nameList = db_des_table.distinct("name")
-    # for name in nameList:
-    #     if not name:
-    #         continue
-    #     fileName = filepath + "youtube_" + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
-    #     logging.info(fileName)
-    #     writeCsv(fileName, name)
 
-    # fb数据
-    nameList = fbcollection.distinct("name")
+    # youtube数据
+    nameList = db_des_table.distinct("name")
     for name in nameList:
         if not name:
             continue
-        fileName = filepath + "facebook_" + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
+        if name != "陈慎慎":
+            continue
+        fileName = filepath + "youtube_" + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
         logging.info(fileName)
-        writeCsvFB(fileName, name)
+        writeCsv(fileName, name)
+
+    # fb数据
+    # nameList = fbcollection.distinct("name")
+    # for name in nameList:
+    #     if not name:
+    #         continue
+    #     fileName = filepath + "facebook_" + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
+    #     logging.info(fileName)
+    #     writeCsvFB(fileName, name)
+    # # # web数据
+    # name = "web"
+    # fileName = filepath + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
+    # logging.info(fileName)
+    # writeCsvWEB(fileName, name)
 
     return filepath
 

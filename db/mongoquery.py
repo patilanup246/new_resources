@@ -8,4 +8,5 @@ def mongoQuery(collection, query):
         if not result_list_one:
             break
         skip_num += limit_num
+        print(skip_num)
     return result_list

@@ -36,27 +36,59 @@ PAGE_SIZE = 500
 
 AD_GROUP_ID = ''
 db = connectMongo(True)
-collection = db["fbWords"]
+collection = db["keyWords"]
 
-langueDict = {
-    "波兰":"1030",
-    "葡萄牙":"1014",
-    "西班牙":"1003",
-    "英语":"1000",
-    "德国":"1001",
-    "意大利":"1004",
-    "土耳其":"1037",
-    "法国":"1002",
-    "匈牙利":"1024",
-    "斯洛文尼亚":"1034",
-    "保加利亚":"1020",
-    "俄罗斯":"1031"
-
-}
+langueDict = {"阿拉伯": "1019",
+              "孟加拉": "1056",
+              "保加利亚": "1020",
+              "加泰罗尼亚": "1038",
+              "中文": "1017",
+              "中文繁体": "1018",
+              "克罗地亚": "1039",
+              "捷克": "1021",
+              "丹麦": "1009",
+              "荷兰": "1010",
+              "英语": "1000",
+              "爱沙尼亚": "1043",
+              "菲律宾": "1042",
+              "芬兰": "1011",
+              "法国": "1002",
+              "德国": "1001",
+              "希腊": "1022",
+              "希伯来": "1027",
+              "印地": "1023",
+              "匈牙利": "1024",
+              "冰岛": "1026",
+              "印度尼西亚": "1025",
+              "意大利": "1004",
+              "日本": "1005",
+              "朝鲜": "1012",
+              "拉脱维亚": "1028",
+              "立陶宛": "1029",
+              "马来": "1102",
+              "挪威": "1013",
+              "波斯": "1064",
+              "波兰": "1030",
+              "葡萄牙": "1014",
+              "罗马尼亚": "1032",
+              "俄罗斯": "1031",
+              "塞尔维亚": "1035",
+              "斯洛伐克": "1033",
+              "斯洛文尼亚": "1034",
+              "西班牙": "1003",
+              "瑞典": "1015",
+              "泰米尔": "1130",
+              "泰卢固": "1131",
+              "泰国": "1044",
+              "土耳其": "1037",
+              "乌克兰": "1036",
+              "乌尔都": "1041",
+              "越南": "1040"}
+holewd = []
 
 
 # 主函数
-def main(client, keyword, ad_group_id=None):
+def main(part, station, client, keyword, ad_group_id=None):
     data = []
     # 初始化适当的服务。
     targeting_idea_service = client.GetService(
@@ -64,8 +96,8 @@ def main(client, keyword, ad_group_id=None):
 
     # 构造选择器对象并检索相关的关键字。
     selector = {
-        'ideaType': 'KEYWORD',
-        'requestType': 'IDEAS'
+        "ideaType": "KEYWORD",
+        "requestType": "IDEAS"
     }
 
     selector['requestedAttributeTypes'] = [
@@ -89,9 +121,9 @@ def main(client, keyword, ad_group_id=None):
     if not id:
         return
     selector['searchParameters'].append({
-         'xsi_type': 'LanguageSearchParameter',
-         'languages': [{'id': id}]
-     })
+        'xsi_type': 'LanguageSearchParameter',
+        'languages': [{'id': id}]
+    })
 
     # 网络搜索参数（可选）
     selector['searchParameters'].append({
@@ -124,28 +156,34 @@ def main(client, keyword, ad_group_id=None):
                         attribute['value'], 'value', '0')
                 if (int(attributes['SEARCH_VOLUME']) > 200) and (attributes['KEYWORD_TEXT'] not in holewd):
                     holewd.append(attributes['KEYWORD_TEXT'])
-                    print(attributes['KEYWORD_TEXT'], attributes['SEARCH_VOLUME'])
                     data.append(
                         (attributes['KEYWORD_TEXT'], attributes['SEARCH_VOLUME'], keyword[1], keyword[2], keyword[3]))
         else:
             print('No related keywords were found.')
         try:
             for result in data:
+                platId = 1
                 item = {
-                    "_id": result[0],
+                    "_id": str(platId) + "_" + part + "_" + station + "_" + result[0],
                     "originKey": keyword[0],
-                    "language": result[3],
-                    "resPeople": y[4],
+                    "language": keyword[2],
+                    "resPeople": keyword[4],
                     "isGet": False,
-                    "category": result[2],
+                    "category": keyword[1],
                     "keyWord": result[0],
                     "hots": result[1],
                     "getData": False,
+                    "platId": platId,
+                    "part": part,
+                    "date": keyword[-2],
+                    "station": station,
+                    "insertTime": int(time.time())
                 }
                 try:
                     collection.insert(item)
+                    print(item)
                 except Exception as e:
-                    collection.update_one({"_id": result[0]}, {"$set": {"hots": result[1], "originKey": keyword[0]}})
+                    pass
         except:
             for orr in range(0, 10):
                 print('orr')
@@ -155,55 +193,92 @@ def main(client, keyword, ad_group_id=None):
 
 
 if __name__ == '__main__':
-    with open("start.csv",encoding="gbk") as csvfile:
+    with open("keyword.csv", encoding="gbk", newline='', ) as csvfile:
+        dataList = []
         csv_reader = csv.reader(csvfile)  # 使用csv.reader读取csvfile中的文件
         birth_header = next(csv_reader)  # 读取第一行每一列的标题
         for row in csv_reader:  # 将csv 文件中的数据保存到birth_data中
-            # print(row)
-            item = {
-                "_id": row[0],
-                "originKey": row[0],
-                "language": row[2],
-                "resPeople": row[4],
-                "category": "",
-                "keyWord": row[0],
-                "hots": 1000,
-                "getData": False,
-            }
-            try:
-                collection.insert(item)
-                print(item)
-            except Exception as e:
-                print(e)
-    # lines = [lin for lin in csv.reader(open('start.csv', 'r',encoding="utf-8"))]
-    # for y in lines:
-    #     print(y[0])
-        # item = {
-        #     "_id": y[0],
-        #     "originKey": y[0],
-        #     "language": y[2],
-        #     "resPeople": y[4],
-        #     "isGet": False,
-        #     "category": y[1],
-        #     "keyWord": y[0],
-        #     "hots": 99999,
-        #     "getData": False,
-        # }
-        # try:
-        #     collection.insert(item)
-        # except Exception as e:
-        #     print(e)
+            dataList.append(row)
+        adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
+        for row in dataList:
+            if not row[0].strip():
+                continue
 
-    # holewd = []
-    #
-    # adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
-    # for y in lines:
-    #     print(y)
-    #     try:
-    #         main(adwords_client, y, int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
-    #     except:
-    #         ops.writelines(y)
-    #         print(traceback.format_exc())
-    #         print('no')
-    #         continue
-    # time.sleep(random.randint(40, 60))
+            if row[6].strip().lower() == "gearbest":
+                part = "GB"
+                station = "GearBest"
+            elif row[6].strip().lower() == "zaful":
+                part = "clothes"
+                station = "Zaful"
+
+            elif row[6].strip().lower() == "rosegal":
+                part = "clothes"
+                station = "Rosegal"
+
+            elif row[6].strip().lower() == "dresslily":
+                part = "clothes"
+                station = "Dresslily"
+            else:
+                continue
+            if "facebook" in row[3].lower():
+                platId = 2
+                item = {
+                    "_id": str(platId) + "_" + part + "_" + station + "_" + row[0],
+                    "originKey": row[0],
+                    "language": row[2],
+                    "resPeople": row[4],
+                    "isGet": False,
+                    "category": row[1],
+                    "keyWord": row[0],
+                    "hots": 0,
+                    "getData": False,
+                    "platId": platId,
+                    "part": part,
+                    "date": row[-2],
+                    "station": station,
+                    "insertTime": int(time.time())
+                }
+                try:
+                    collection.insert(item)
+                    print(item)
+                except Exception as e:
+                    pass
+            if "youtube" in row[3].lower():
+
+                platId = 1
+                item = {
+                    "_id": str(platId) + "_" + part + "_" + station + "_" + row[0],
+                    "originKey": row[0],
+                    "language": row[2],
+                    "resPeople": row[4],
+                    "isGet": False,
+                    "category": row[1],
+                    "keyWord": row[0],
+                    "hots": 0,
+                    "getData": False,
+                    "platId": platId,
+                    "part": part,
+                    "date": row[-2],
+                    "station": station,
+                    "insertTime": int(time.time())
+                }
+
+                try:
+                    collection.insert(item)
+                    print(item)
+                except Exception as e:
+                    pass
+
+
+                # originKey = collection.find_one({"originKey": row[0], "platId": 1})
+                # if originKey:
+                #     print("存在:{}".format(originKey))
+                #     continue
+                #
+                # try:
+                #     main(part, station, adwords_client, row,
+                #          int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
+                # except:
+                #     print(traceback.format_exc())
+                #     dataList.append(row)
+                #     continue

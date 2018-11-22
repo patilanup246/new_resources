@@ -26,28 +26,35 @@ import traceback
 import threading
 import random
 
+platId = 2
 db = connectMongo(True)
-keyCollection = db["fbWords"]
+keyCollection = db["keyWords"]
 fbresourcesCollection = db["fbresources"]
-blackwhitecoll = db["fbblackWhite"]
+blackwhitecoll = db["blackWhite"]
 blackUrlcoll = db["blackUrl"]
 invisibleUrlcoll = db["invisibleUrl"]
 
-blackList = blackwhitecoll.distinct("word", {"isBlack": True})
+blackList = blackwhitecoll.distinct("word", {"isBlack": True, "platId": platId, "part": 'GB'})
+clothesblackList = blackwhitecoll.distinct("word", {"isBlack": True, "platId": platId, "part": 'clothes'})
 
 errNode = 0
 keyWordList = []
 
 userPsdItem = {
     # "wuzeronger@live.com": "wuzeronger123",  # 需要验证身份
-    # "958905350@qq.com": "withyou1314",  # 已经被禁止搜索具体群组
-    # "2933219312@qq.com": "Citic231104",  # 操作太快没有搜索权限
-    # "tanya.beleutova.beleutova@mail.ru": "yoan6SNoer",  # 需要验证手机号码
+    "958905350@qq.com": "withyou1314",  # 已经被禁止搜索具体群组
+    "2933219312@qq.com": "Citic231104",  # 操作太快没有搜索权限
+    # # "tanya.beleutova.beleutova@mail.ru": "yoan6SNoer",  # 需要验证手机号码
     "huguangjing211@gmail.com": "hgj212816",
+    # "brveo2166@inbox.ru": "B3Lt5zjlWk",
+    # "DyachkovaEvridika89@inbox.ru": "OCRsw5VMth",
+    # "EginaGuschina89.89@inbox.ru": "HfwxQpbMQP",
+    "jordan.macduff.1982@list.ru": "ltcw4356"
 }
 
 
-def loginFB(driver, url, userName, psd):
+def loginFB(driver, url, userName, psd, name):
+    global userPsdItem
     global keyWordList
     try:
         logging.info("开始起始地址:{}".format(url))
@@ -71,14 +78,16 @@ def loginFB(driver, url, userName, psd):
                     del userPsdItem[userName]
                     driver.quit()
                     return
-                time.sleep(2)
+                time.sleep(random.randint(3, 5))
             else:
                 break
         # time.sleep(1)
         if driver.current_url != "https://www.facebook.com/":
-            logging.warn("输入密码和用户名后,跳转的界面不是主页,{}".format(driver.current_url))
-            driver.quit()
-            return
+            driver.get("https://www.facebook.com/")
+            if driver.current_url != "https://www.facebook.com/":
+                logging.warn("输入密码和用户名后,跳转的界面不是主页,{}".format(driver.current_url))
+                driver.quit()
+                return
         else:
             response = driver.page_source
             selector = etree.HTML(response)
@@ -87,39 +96,48 @@ def loginFB(driver, url, userName, psd):
                 if nodeResult[0] != "中文(简体)":
                     logging.error("非中文页面")
                     driver.find_element_by_xpath('//a[@lang="zh_CN"]').click()
-                    time.sleep(2)
+                    time.sleep(random.randint(3, 5))
                     """//div[@class="_4t2a"]//button"""
                     driver.find_element_by_xpath('//div[@class="_4t2a"]//button').click()
-                    time.sleep(2)
+                    time.sleep(random.randint(3, 5))
         # keyWordList = list(collection.distinct("keyWord", {"getData": False}))[:1000]
-        keyWordList = mongoQuery(keyCollection, {"getData": False})
+        keyWordList = mongoQuery(keyCollection, {"getData": False, "platId": platId, "resPeople": name})
         if not keyWordList:
+            # keyWordList = mongoQuery(keyCollection, {"getData": False, "platId": platId, "resPeople": {"ne": "吴泽荣"}})
+            # if not keyWordList:
             logging.warn("no keywords now")
-            time.sleep(60)
-        else:
-            # 跳转到小组界面
-            keyWordDeal(keyWordList, driver, userName)
+            time.sleep(3600 * 24)
+        # 跳转到小组界面
+        keyWordDeal(keyWordList, driver, userName)
     except Exception as e:
         logging.error(traceback.format_exc())
 
     finally:
         if driver:
             driver.quit()
+            return
 
 
 def keyWordDeal(keyWordList, driver, userName):
+    global userPsdItem
     global errNode
     try:
+        startTime = int(time.time())
         for result in keyWordList:
+            endTime = int(time.time())
+            # if endTime - startTime >= 10 * 3600:
+            #     del userPsdItem[userName]
+            #     driver.quit()
             keyWord = result["keyWord"]
 
             resPeople = result["resPeople"]
             language = result['language']
-            keyWordNew = keyWord.replace(" ", "+")
+            part = result["part"]
+            keyWordNew = keyWord.replace(" ", "+").replace("?", "")
             url = "https://www.facebook.com/search/str/{}/keywords_groups".format(keyWordNew)
             js = 'window.open("{}");'.format(url)
             driver.execute_script(js)
-            time.sleep(5)
+            time.sleep(random.randint(3, 5))
             driver.switch_to_window(driver.window_handles[1])
             logging.info("新开窗口,切换到小组窗口界面,url:{}".format(driver.current_url))
 
@@ -129,27 +147,73 @@ def keyWordDeal(keyWordList, driver, userName):
             logging.info("解析小组页面详细url,关键字:{}".format(keyWord))
             titleNode = selector.xpath('//div[@class="_gll"]/div//a/@href')
             if not titleNode:
-                errNode += 1
                 logging.error("没有搜索到相关信息,关键字:{},url:{}".format(keyWord, url))
                 driver.close()
+                driver.switch_to_window(driver.window_handles[0])
+                # 没有搜索到数据的话 减少长度搜索 如果有数据  代表搜多引擎可用
+                if "+" in keyWordNew:
+                    word = keyWordNew.split("+")[0].replace("?", "")
+                else:
+                    word = "xiaomi"
+                url = "https://www.facebook.com/search/str/{}/keywords_groups".format(word)
+                js = 'window.open("{}");'.format(url)
+                driver.execute_script(js)
+                time.sleep(random.randint(3, 5))
+                driver.switch_to_window(driver.window_handles[1])
+                logging.info("新开窗口,切换到小组窗口界面,url:{}".format(driver.current_url))
+
+                responseBody = driver.page_source
+                selector = etree.HTML(responseBody)
+
+                logging.info("解析小组页面详细url,关键字:{}".format(word))
+                titleNode = selector.xpath('//div[@class="_gll"]/div//a/@href')
+                if titleNode:
+                    logging.info("确实没有搜索到任何东西,关键字:{}".format(keyWordNew))
+                    keyCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part},
+                                             {"$set": {"getData": True}})
+                else:
+                    # 再确认一次 搜索小米
+                    word = "huawei"
+                    url = "https://www.facebook.com/search/str/{}/keywords_groups".format(word)
+                    js = 'window.open("{}");'.format(url)
+                    driver.execute_script(js)
+                    time.sleep(random.randint(3, 5))
+                    driver.switch_to_window(driver.window_handles[1])
+                    logging.info("新开窗口,切换到小组窗口界面,url:{}".format(driver.current_url))
+                    responseBody = driver.page_source
+                    selector = etree.HTML(responseBody)
+
+                    logging.info("解析小组页面详细url,关键字:{}".format(word))
+                    titleNode = selector.xpath('//div[@class="_gll"]/div//a/@href')
+                    if titleNode:
+                        logging.info("确实没有搜索到任何东西,关键字:{}".format(keyWordNew))
+                        keyCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part},
+                                                 {"$set": {"getData": True}})
+                    else:
+                        errNode += 1
+                        logging.error("搜索引擎被禁止,name:{}".format(userName))
+                        del userPsdItem[userName]
+                        driver.quit()
+                        return
                 driver.switch_to_window(driver.window_handles[0])
                 # driver.switch_to.default_content()
                 continue
 
-            if errNode >= 100:
-                logging.warn("搜索功能可能已经被已经被禁用,用户名:{}".format(userName))
-                errNode = 0
-                driver.quit()
-                return
+            # if errNode >= 100:
+            #     logging.warn("搜索功能可能已经被已经被禁用,用户名:{}".format(userName))
+            #     errNode = 0
+            #     driver.quit()
+            #     return
 
             # 处理具体的群组信息
-            groupDeal(driver, keyWord, userName, resPeople, language)
+            groupDeal(driver, keyWord, userName, resPeople, language, part)
     except Exception as e:
         driver.quit()
         return
 
 
-def groupDeal(driver, keyWord, userName, resPeople, language):
+def groupDeal(driver, keyWord, userName, resPeople, language, part):
+    global userPsdItem
     global keyWordList
     try:
         scroll = 1
@@ -163,8 +227,10 @@ def groupDeal(driver, keyWord, userName, resPeople, language):
             except NoSuchElementException:
                 logging.info("滚动滚动条{}次,关键字:{}".format(scroll, keyWord))
                 scroll += 1
+                if scroll >= 20:
+                    break
                 driver.execute_script(js)
-                time.sleep(2)
+                time.sleep(random.randint(3, 5))
         responseBody = driver.page_source
         selector = etree.HTML(responseBody)
 
@@ -185,14 +251,15 @@ def groupDeal(driver, keyWord, userName, resPeople, language):
                         groupNum = int(re.search(r"(.*?)位成员", groupNumStr).group(1).replace(",", "").strip())
                         if language == "英语":
                             if groupNum < 1000:
-                                logging.error("英语,成员少于1000人")
+                                logging.error("{},成员少于1000人".format(language))
                                 continue
                         else:
                             if groupNum < 500:
-                                logging.error("非英语,成员少于500人")
+                                logging.error("{},成员少于500人".format(language))
                                 continue
                 except Exception as e:
                     logging.error(e)
+                    continue
 
                 # 正则提取出链接出来
                 try:
@@ -215,17 +282,26 @@ def groupDeal(driver, keyWord, userName, resPeople, language):
 
                 if description.endswith("小组"):
                     description = ""
+
+                # 判断是否在黑名单中
+                resultMongo = blackUrlcoll.find_one(
+                    {"url": link.replace("/about", ""), "platId": platId, "part": part})
+                if resultMongo:
+                    logging.error("存在黑名单中,url:{}".format(link.replace("/about", "")))
+                    continue
                 # 是否存在黑名单中
                 if description:
-                    isExists, blackWord = black(description)
+                    isExists, blackWord = black(description, part)
                     if isExists:
                         logging.error("存在非中文黑名单中,word:{},url:{}".format(blackWord, link.replace("/about", "")))
                         try:
                             blackUrlcoll.insert({
-                                "_id": "2_" + link.replace("/about", ""),
+                                "_id": str(platId) + "_" + part + "_" + link.replace("/about", ""),
                                 "url": link.replace("/about", ""),
-                                "platId": 2,
-                                "blackWord": blackWord
+                                "platId": platId,
+                                "blackWord": blackWord,
+                                "part": part,
+                                "insertTime": int(time.time())
                             })
                         except Exception as e:
                             logging.error(e)
@@ -235,28 +311,26 @@ def groupDeal(driver, keyWord, userName, resPeople, language):
                     continue
 
                 # 是否在数据库中
-                result = fbresourcesCollection.find_one({"url": link.replace("/about", "")})
+                result = fbresourcesCollection.find_one(
+                    {"url": link.replace("/about", ""), "platId": platId, "part": part})
                 if result:
                     if result["groupName"]:
                         logging.error("存在数据库中,url:{}".format(link))
                         continue
 
                 # 是否存在mms中
-                domain = "http://mms.gloapi.com/"
+                if part == "GB":
+                    domain = "http://mms.gloapi.com/"
+                else:
+                    domain = "http://cmms.gloapi.com/"
                 isExists = checkUrl(link.replace("/about", ""), domain)
                 if isExists:
-                    logging.warn("存在mms中,name:{},url:{}".format(resPeople, link.replace("/about", "")))
+                    logging.warn("存在{}中,name:{},url:{}".format(domain, resPeople, link.replace("/about", "")))
                     # 代表存在接口中
                     continue
 
-                # 判断是否在黑名单中
-                resultMongo = blackUrlcoll.find_one({"url": link.replace("/about", "")})
-                if resultMongo:
-                    logging.error("存在黑名单中,url:{}".format(link.replace("/about", "")))
-                    continue
-
                 # 是否存在存在发帖数不满足条件的苦中
-                result = invisibleUrlcoll.find_one({"url": link.replace("/about", "")})
+                result = invisibleUrlcoll.find_one({"url": link.replace("/about", ""), "platId": platId})
                 if result:
                     logging.error("过去 30 天内发帖数没有达标,url:{}".format(link.replace("/about", "")))
                     continue
@@ -266,26 +340,28 @@ def groupDeal(driver, keyWord, userName, resPeople, language):
                 logging.error(traceback.format_exc())
         if not linkList:
             if titleNodeList:
-                keyCollection.update_one({"keyWord": keyWord}, {"$set": {"getData": True}})
+                keyCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part},
+                                         {"$set": {"getData": True}})
                 logging.error("没有查到相关数据,keyWord:{}".format(keyWord))
             driver.close()
             driver.switch_to_window(driver.window_handles[0])
-            time.sleep(5)
+            time.sleep(random.randint(3, 5))
             return
         else:
-            time.sleep(1)
+            time.sleep(random.randint(3, 5))
 
         while True:
-            fiveList = linkList[:5]
+            fiveList = linkList[:3]
             if not fiveList:
-                keyCollection.update_one({"keyWord": keyWord}, {"$set": {"getData": True}})
+                keyCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part},
+                                         {"$set": {"getData": True}})
                 break
 
             for url in fiveList:
                 js = 'window.open("{}");'.format(url)
                 linkList.remove(url)
                 driver.execute_script(js)
-                time.sleep(3)
+                time.sleep(random.randint(3, 5))
 
             handles = driver.window_handles
             driver.switch_to_window(handles[0])
@@ -293,7 +369,7 @@ def groupDeal(driver, keyWord, userName, resPeople, language):
             for handle in handles:
                 if handle != currentHandle:
                     try:
-                        time.sleep(2)
+                        time.sleep(random.randint(3, 5))
                         driver.switch_to_window(handle)
                         if "操作过快" in driver.page_source:
                             logging.warn('操作过快,导致没有搜索详情权限,用户名:{}'.format(userName))
@@ -307,8 +383,8 @@ def groupDeal(driver, keyWord, userName, resPeople, language):
                         if url:
                             text = checkText(driver.page_source.encode("utf-8", "ignore"), url)
                             if not text:
-                                time.sleep(3)
-                            parsePage(driver.page_source, url, resPeople, keyWord, language)
+                                time.sleep(random.randint(3, 5))
+                            parsePage(driver.page_source, url, resPeople, keyWord, language, part)
                         driver.close()
                         driver.switch_to_window(handles[0])
                     except Exception as e:
@@ -337,11 +413,15 @@ def checkText(response, url):
         logging.error(traceback.format_exc())
 
 
-def black(desc):
+def black(desc, part):
     blackWord = ""
+    if part == "GB":
+        blackListall = blackList
+    else:
+        blackListall = clothesblackList
     try:
         isExists = False
-        for word in blackList:
+        for word in blackListall:
             if word in desc:
                 blackWord = word
                 logging.error("存在黑名单中,word:{}".format(word))
@@ -352,7 +432,7 @@ def black(desc):
         logging.error(traceback.format_exc())
 
 
-def parsePage(response, url, resPeople, keyWord, language):
+def parsePage(response, url, resPeople, keyWord, language, part):
     try:
         selector = etree.HTML(response)
         text = selector.xpath('//div[@id="pagelet_group_about"]//text()')
@@ -382,9 +462,18 @@ def parsePage(response, url, resPeople, keyWord, language):
         # 群成员
         try:
             groupNum = re.search(r"成员(.+?)#", textStr).group(1).replace(",", "")
-            groupNum = re.search(r"(\d+)", groupNum).group(1)
+            groupNum = int(re.search(r"(\d+)", groupNum).group(1))
         except Exception as e:
             groupNum = 0
+            return
+        if language == "英语":
+            if groupNum < 1000:
+                logging.error("{},成员少于1000人".format(language))
+                return
+        else:
+            if groupNum < 500:
+                logging.error("{},成员少于500人".format(language))
+                return
         logging.info("groupNum:{},url:{}".format(groupNum, url))
 
         # 小组类型
@@ -398,16 +487,17 @@ def parsePage(response, url, resPeople, keyWord, language):
         try:
             postNum = int(re.search(r"天内有(.+?)篇", textStr).group(1).strip().replace(",", ""))
         except Exception as e:
-            postNum = 0
+            return
         # 处理过滤信息
         if language == "英语":
             if postNum < 100:
                 try:
                     invisibleUrlcoll.insert({
-                        "_id": url,
+                        "_id": str(platId) + "_" + url,
                         "url": url,
                         "platId": 2,
-                        "postNum": postNum
+                        "postNum": postNum,
+                        "insertTime": int(time.time())
                     })
                 except Exception as e:
                     logging.error(e)
@@ -416,10 +506,11 @@ def parsePage(response, url, resPeople, keyWord, language):
             if postNum < 50:
                 try:
                     invisibleUrlcoll.insert({
-                        "_id": "2_" + url,
+                        "_id": str(platId) + "_" + url,
                         "url": url,
                         "platId": 2,
-                        "postNum": postNum
+                        "postNum": postNum,
+                        "insertTime": int(time.time())
                     })
                 except Exception as e:
                     logging.error(e)
@@ -447,113 +538,63 @@ def parsePage(response, url, resPeople, keyWord, language):
             manager = ''
         logging.info("manager:{},    url:{}".format(manager, url))
 
-        # 查询是否在数据库中
-        _id = "2_" + url
-        result = fbresourcesCollection.find_one({"_id": _id})
-        if result:
-            formerDesc = result["description"]
-            formerGroupNum = result["groupNum"]
-            if not description:
-                description = formerDesc
-            if description:
-                isExists, blackWord = black(description)
-                if isExists:
-                    # 存在即存入数据数中
-                    logging.error("存在非中文黑名单中,url:{}".format(url))
-                    try:
-                        blackUrlcoll.insert({
-                            "_id": "2_" + url,
-                            "url": url,
-                            "platId": 2,
-                            "blackWord": blackWord
-                        })
-                    except Exception as e:
-                        logging.error(e)
-                    return
-                # 翻译
-                description = mainTranslate(description)
-                isExists, blackWord = black(description)
-                if isExists:
-                    # 存在即存入数据数中
-                    logging.error("存在中文黑名单中,url:{}".format(url))
-                    try:
-                        blackUrlcoll.insert({
-                            "_id": "2_" + url,
-                            "url": url,
-                            "platId": 2,
-                            "blackWord": blackWord
-                        })
-                    except Exception as e:
-                        logging.error(e)
-                    return
-            if not groupNum:
-                groupNum = formerGroupNum
-            fbresourcesCollection.update_one({"_id": _id}, {"$set": {
-                "description": description,
-                "groupNum": groupNum,
-                "groupName": groupName,
-                "groupType": groupType,
-                "postNum": postNum,
-                "manager": manager,
-                "csvLoad": False,
-                "name": resPeople,
-                "part": "GB",
-                "lastUpdate": int(time.time())
-            }})
-        else:
-            if description:
-                isExists, blackWord = black(description)
-                if isExists:
-                    # 存在即存入数据数中
-                    logging.error("存在非中文黑名单中,url:{}".format(url))
-                    try:
-                        blackUrlcoll.insert({
-                            "_id": "2_" + url,
-                            "url": url,
-                            "platId": 2,
-                            "blackWord": blackWord
-                        })
-                    except Exception as e:
-                        logging.error(e)
-                    return
-                # 翻译
-                description = mainTranslate(description)
-                isExists, blackWord = black(description)
-                if isExists:
-                    # 存在即存入数据数中
-                    logging.error("存在中文黑名单中,url:{}".format(url))
-                    try:
-                        blackUrlcoll.insert({
-                            "_id": "2_" + url,
-                            "url": url,
-                            "platId": 2,
-                            "blackWord": blackWord
-                        })
-                    except Exception as e:
-                        logging.error(e)
-                    return
-            fbresourcesCollection.insert_one({
-                "_id": "2_" + url,
-                "description": description,
-                "groupNum": groupNum,
-                "url": url,
-                "platId": 2,
-                "groupName": groupName,
-                "groupType": groupType,
-                "postNum": postNum,
-                "manager": manager,
-                "csvLoad": False,
-                "name": resPeople,
-                "part": "GB",
-                "keyWord": keyWord,
-                "language": language,
-                "lastUpdate": int(time.time())
-            })
+        if description:
+            isExists, blackWord = black(description, part)
+            if isExists:
+                # 存在即存入数据数中
+                logging.error("存在非中文黑名单中,url:{}".format(url))
+                try:
+                    blackUrlcoll.insert({
+                        "_id": str(platId) + "_" + part + "_" + url,
+                        "url": url,
+                        "platId": platId,
+                        "blackWord": blackWord,
+                        "part": part,
+                        "insertTime": int(time.time())
+                    })
+                except Exception as e:
+                    logging.error(e)
+                return
+            # 翻译
+            description = mainTranslate(description)
+            isExists, blackWord = black(description, part)
+            if isExists:
+                # 存在即存入数据数中
+                logging.error("存在中文黑名单中,url:{}".format(url))
+                try:
+                    blackUrlcoll.insert({
+                        "_id": str(platId) + "_" + part + "_" + url,
+                        "url": url,
+                        "platId": platId,
+                        "blackWord": blackWord,
+                        "part": part,
+                        "insertTime": int(time.time())
+                    })
+                except Exception as e:
+                    logging.error(e)
+                return
+        fbresourcesCollection.insert_one({
+            "_id": str(platId) + "_" + part + "_" + url,
+            "description": description,
+            "groupNum": groupNum,
+            "url": url,
+            "platId": platId,
+            "groupName": groupName,
+            "groupType": groupType,
+            "postNum": postNum,
+            "manager": manager,
+            "csvLoad": False,
+            "name": resPeople,
+            "part": part,
+            "keyWord": keyWord,
+            "language": language,
+            "lastUpdate": int(time.time())
+        })
     except Exception as e:
         logging.error(traceback.format_exc())
 
 
-def mainR(url, userName, psd):
+def mainR(url, userName, psd, name):
     if sys.argv[1] == "debug":
         # 非正式环境
         options = getOption(False)
@@ -563,38 +604,56 @@ def mainR(url, userName, psd):
         options = getOption(True)
         driver = webdriver.Chrome(executable_path="./chromedriver", chrome_options=options)
 
-    loginFB(driver, url, userName, psd)
+    loginFB(driver, url, userName, psd, name)
 
 
 if __name__ == '__main__':
     # 构建线程
+    nameList = []
+    nameList = keyCollection.distinct("resPeople", {"platId": 2, "getData": False})
     threads = []
     urls = []
-    for i in range(1):
+    names = []
+    for name in nameList:
         url = 'https://www.facebook.com/login'
         if list(userPsdItem.keys()):
+            time.sleep(5)
             userName = random.choice(list(userPsdItem.keys()))
             psd = userPsdItem[userName]
             # del userPsdItem[userName]
-            th = threading.Thread(target=mainR, args=(url, userName, psd))
+            th = threading.Thread(target=mainR, args=(url, userName, psd, name))
             th.setDaemon(True)
             th.start()
             threads.append(th)
             urls.append(url)
+            names.append(name)
     # 启动所有线程
     while True:
         time.sleep(60)
-        for th, url in zip(threads, urls):
+        for th, url, name in zip(threads, urls, names):
             if not th.is_alive():
                 logging.warn("线程停止{}".format(th.name))
                 logging.info("有效fb用户:{}".format(list(userPsdItem.keys())))
                 threads.remove(th)
                 urls.remove(url)
-                if list(userPsdItem.keys()):
-                    userName = random.choice(list(userPsdItem.keys()))
-                    psd = userPsdItem[userName]
-                    # del userPsdItem[userName]
-                    th = threading.Thread(target=mainR, args=(url, userName, psd))
-                    th.start()
-                    threads.append(th)
-                    urls.append(url)
+                names.remove(name)
+                if not list(userPsdItem.keys()):
+                    userPsdItem = {
+                        # "wuzeronger@live.com": "wuzeronger123",  # 需要验证身份
+                        "958905350@qq.com": "withyou1314",  # 已经被禁止搜索具体群组
+                        "2933219312@qq.com": "Citic231104",  # 操作太快没有搜索权限
+                        # # "tanya.beleutova.beleutova@mail.ru": "yoan6SNoer",  # 需要验证手机号码
+                        "huguangjing211@gmail.com": "hgj212816",
+                        # "brveo2166@inbox.ru": "B3Lt5zjlWk",
+                        # "DyachkovaEvridika89@inbox.ru": "OCRsw5VMth",
+                        # "EginaGuschina89.89@inbox.ru": "HfwxQpbMQP",
+                        "jordan.macduff.1982@list.ru": "ltcw4356"
+                    }
+                userName = random.choice(list(userPsdItem.keys()))
+                psd = userPsdItem[userName]
+                # del userPsdItem[userName]
+                th = threading.Thread(target=mainR, args=(url, userName, psd, name))
+                th.start()
+                threads.append(th)
+                urls.append(url)
+                names.append(name)

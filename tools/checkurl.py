@@ -5,6 +5,8 @@ import logging
 
 from db.mongodb import connectMongo
 
+from urllib.request import urlparse
+
 
 def sendRequest(url, domain):
     try:
@@ -58,8 +60,64 @@ def checkUrl(url, domain):
     return isExist
 
 
+def checkMail(mail, domain):
+    isExist = True  # 代表存在mms中
+    responseBody = sendRequestMail(mail, domain)
+    print(responseBody)
+    if responseBody:
+        if responseBody["status"]:
+            if responseBody["data"]:
+                if responseBody["data"]["email"]:
+                    isExist = False  # False代表不存在数据库
+    return isExist
+
+
+def sendRequestMail(mail, domain):
+    try:
+        requestUrl = domain + "api/query/email"
+        data = {
+            "email": mail.encode(),
+            # "fuzzy": url.encode()
+        }
+        response = requests.post(url=requestUrl, data=data)
+        return json.loads(response.text)
+    except Exception as e:
+        print(traceback.format_exc())
+
+
+def checkWebUrl(url, domain):
+    urlDomain = urlparse(url).netloc
+    if "www." not in urlDomain:
+        url = "http://www." + urlDomain
+    else:
+        url = "http://" + urlDomain
+    isExist = True  # 代表存在mms中
+    responseBody = sendRequestWeb(url, domain)
+    if responseBody:
+        if responseBody["status"]:
+            if responseBody["data"]["complete"]:
+                isExist = False  # False代表不存在数据库
+    return isExist
+
+
+def sendRequestWeb(url, domain):
+    try:
+        requestUrl = domain + "api/query/url"
+        data = {
+            "complete": url.encode(),
+            # "fuzzy": url.encode()
+        }
+        response = requests.post(url=requestUrl, data=data)
+        return json.loads(response.text)
+    except Exception as e:
+        print(traceback.format_exc())
+
+
 if __name__ == '__main__':
-    result = checkUrl("https://www.facebook.com/groups/promochina","http://mms.gloapi.com/")
+    mmsDomain = "http://mms.gloapi.com/"
+    cmmsDomain = "http://cmms.gloapi.com/"
+    # cmmsDomain = "http://cmms.gloapi.com.a.php5.egomsl.com/"
+    result = checkWebUrl("https://zococity.es", mmsDomain)
     print(result)
     # db = connectMongo(True)
     # userCollection = db["userInfo"]
