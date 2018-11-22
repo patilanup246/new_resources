@@ -53,6 +53,7 @@ langueDict = {
     "俄罗斯":"1031"
 
 }
+holewd = []
 
 
 # 主函数
@@ -124,28 +125,42 @@ def main(client, keyword, ad_group_id=None):
                         attribute['value'], 'value', '0')
                 if (int(attributes['SEARCH_VOLUME']) > 200) and (attributes['KEYWORD_TEXT'] not in holewd):
                     holewd.append(attributes['KEYWORD_TEXT'])
-                    print(attributes['KEYWORD_TEXT'], attributes['SEARCH_VOLUME'])
                     data.append(
                         (attributes['KEYWORD_TEXT'], attributes['SEARCH_VOLUME'], keyword[1], keyword[2], keyword[3]))
         else:
             print('No related keywords were found.')
         try:
             for result in data:
+                # item = {
+                #     "_id": result[0],
+                #     "originKey": keyword[0],
+                #     "language": result[3],
+                #     "resPeople": y[4],
+                #     "isGet": False,
+                #     "category": result[2],
+                #     "keyWord": result[0],
+                #     "hots": result[1],
+                #     "getData": False,
+                # }
+                platId = 1
                 item = {
-                    "_id": result[0],
+                    "_id": str(platId) + "_GB_" + result[0],
                     "originKey": keyword[0],
-                    "language": result[3],
-                    "resPeople": y[4],
+                    "language": keyword[2],
+                    "resPeople": keyword[4],
                     "isGet": False,
-                    "category": result[2],
+                    "category": keyword[1],
                     "keyWord": result[0],
                     "hots": result[1],
                     "getData": False,
+                    "platId": platId,
+                    "part": "GB"
                 }
                 try:
                     collection.insert(item)
+                    print(item)
                 except Exception as e:
-                    collection.update_one({"_id": result[0]}, {"$set": {"hots": result[1], "originKey": keyword[0]}})
+                    pass
         except:
             for orr in range(0, 10):
                 print('orr')
@@ -159,51 +174,32 @@ if __name__ == '__main__':
         csv_reader = csv.reader(csvfile)  # 使用csv.reader读取csvfile中的文件
         birth_header = next(csv_reader)  # 读取第一行每一列的标题
         for row in csv_reader:  # 将csv 文件中的数据保存到birth_data中
-            # print(row)
-            item = {
-                "_id": row[0],
-                "originKey": row[0],
-                "language": row[2],
-                "resPeople": row[4],
-                "category": "",
-                "keyWord": row[0],
-                "hots": 1000,
-                "getData": False,
-            }
-            try:
-                collection.insert(item)
-                print(item)
-            except Exception as e:
-                print(e)
-    # lines = [lin for lin in csv.reader(open('start.csv', 'r',encoding="utf-8"))]
-    # for y in lines:
-    #     print(y[0])
-        # item = {
-        #     "_id": y[0],
-        #     "originKey": y[0],
-        #     "language": y[2],
-        #     "resPeople": y[4],
-        #     "isGet": False,
-        #     "category": y[1],
-        #     "keyWord": y[0],
-        #     "hots": 99999,
-        #     "getData": False,
-        # }
-        # try:
-        #     collection.insert(item)
-        # except Exception as e:
-        #     print(e)
-
-    # holewd = []
-    #
-    # adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
-    # for y in lines:
-    #     print(y)
-    #     try:
-    #         main(adwords_client, y, int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
-    #     except:
-    #         ops.writelines(y)
-    #         print(traceback.format_exc())
-    #         print('no')
-    #         continue
-    # time.sleep(random.randint(40, 60))
+            if "Facebook" in row[3]:
+                platId = 2
+                item = {
+                    "_id": str(platId) + "_GB_" + row[0],
+                    "originKey": row[0],
+                    "language": row[2],
+                    "resPeople": row[4],
+                    "isGet": False,
+                    "category": row[1],
+                    "keyWord": row[0],
+                    "hots": 0,
+                    "getData": False,
+                    "platId": platId,
+                    "part": "GB"
+                }
+                try:
+                    collection.insert(item)
+                    print(item)
+                except Exception as e:
+                    pass
+            elif "Youtube" in row[3]:
+                print(row)
+                adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
+                try:
+                    main(adwords_client, row, int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
+                except:
+                    print(traceback.format_exc())
+                    print('no')
+                    continue

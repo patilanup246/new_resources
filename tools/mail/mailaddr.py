@@ -189,30 +189,39 @@ def get_recaptcha_response(channel_url, site_key, session):
         print(e)
 
 
-def take_thread(VideoTitleCount):
+def take_thread():
+    # while True:
+    #     if VideoTitleCount == 2 or VideoTitleCount == 3 or VideoTitleCount == 4:
+    #         # resultList = userCollection.find_one(
+    #         #     {"emailAddress": "", "isRecaptcha": True,"VideoTitleCount": VideoTitleCount})
+    #         resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"VideoTitleCount": VideoTitleCount})
+    #     else:
+    #         resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
+    #         # resultList = userCollection.find_one({"emailAddress": "", "isRecaptcha": True,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
+    #     if not resultList:
+    #         # logging.error("目前没有需要处理的数据")
+    #         time.sleep(60)
+    #         continue
+    #     try:
+    #         main_process(resultList["url"])
+    #     except Exception as e:
+    #         print(e)
     while True:
-        if VideoTitleCount == 2 or VideoTitleCount == 3 or VideoTitleCount == 4:
-            # resultList = userCollection.find_one(
-            #     {"emailAddress": "", "isRecaptcha": True,"VideoTitleCount": VideoTitleCount})
-            resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"VideoTitleCount": VideoTitleCount})
-        else:
-            resultList = userCollection.find_one({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
-            # resultList = userCollection.find_one({"emailAddress": "", "isRecaptcha": True,"$or": [{"VideoTitleCount": VideoTitleCount}, {"VideoTitleCount": VideoTitleCount + 1}]})
+        threadNum = 10
+        resultList = list(
+            userCollection.find({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,
+                                 "VideoTitleCount": {"$gte": 4}}).limit(10))
         if not resultList:
-            # logging.error("目前没有需要处理的数据")
+            logging.error("没有需要获取邮箱的数据")
             time.sleep(60)
             continue
-        try:
-            main_process(resultList["url"])
-        except Exception as e:
-            print(e)
-        # channel_url_list = []
-        # for result in resultList:
-        #     channel_url_list.append(result["url"])
-        # pool = ThreadPool(threadNum)
-        # pool.map_async(main_process, channel_url_list)
-        # pool.close()
-        # pool.join()
+        channel_url_list = []
+        for result in resultList:
+            channel_url_list.append(result["url"])
+        pool = ThreadPool(threadNum)
+        pool.map_async(main_process, channel_url_list)
+        pool.close()
+        pool.join()
 
 
 def main_process(channel_url):
@@ -243,7 +252,7 @@ def main_process(channel_url):
             logging.info("邮箱获取成功,url:{},addr:{}".format(channel_url, mail_addr))
             break
         else:
-            logging.error("邮箱获取失败,url:{}".format(channel_url))
+            logging.error("邮箱获取失败{}次,url:{}".format(i+1,channel_url))
             continue
     try:
         userCollection.update({"url": channel_url}, {
@@ -254,10 +263,11 @@ def main_process(channel_url):
 
 
 if __name__ == '__main__':
-    for VideoTitleCount in range(5, 22, 2):
-        th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
-        th.start()
-
-    for VideoTitleCount in range(2, 5):
-        th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
-        th.start()
+    take_thread()
+    # for VideoTitleCount in range(5, 22, 2):
+    #     th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
+    #     th.start()
+    #
+    # for VideoTitleCount in range(2, 5):
+    #     th = threading.Thread(target=take_thread, args=(VideoTitleCount,))
+    #     th.start()
