@@ -63,7 +63,6 @@ def checkUrl(url, domain):
 def checkMail(mail, domain):
     isExist = True  # 代表存在mms中
     responseBody = sendRequestMail(mail, domain)
-    print(responseBody)
     if responseBody:
         if responseBody["status"]:
             if responseBody["data"]:
@@ -116,19 +115,4 @@ def sendRequestWeb(url, domain):
 if __name__ == '__main__':
     mmsDomain = "http://mms.gloapi.com/"
     cmmsDomain = "http://cmms.gloapi.com/"
-    # cmmsDomain = "http://cmms.gloapi.com.a.php5.egomsl.com/"
-    result = checkWebUrl("https://zococity.es", mmsDomain)
-    print(result)
-    # db = connectMongo(True)
-    # userCollection = db["userInfo"]
-    # resultList = list(userCollection.find({}))
-    # print(len(resultList))
-    # num = 0
-    # for result in resultList:
-    #     url = result["url"]
-    #     isExists = checkUrl(url)
-    #     if isExists:
-    #         num += 1
-    #         userCollection.remove({"url": url})
-    #         print(isExists)
-    # print("总共有多少重复的:{}".format(num))
+    print(checkMail("kitkotfirst@gmail.com",cmmsDomain))

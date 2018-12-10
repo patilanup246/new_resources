@@ -9,6 +9,7 @@ mongodb = connectMongo(True)
 collection = mongodb["blackWhite"]
 
 if __name__ == '__main__':
+    datalist = []
     with open("blackwhite.csv", encoding="gbk", newline='', ) as csvfile:
         dataList = []
         csv_reader = csv.reader(csvfile)
@@ -23,8 +24,8 @@ if __name__ == '__main__':
             elif row[0].strip() == "白名单":
                 isBlack = False
                 isWhite = True
-            else:
-                continue
+            elif row[0].strip() == "白名单2":
+                datalist.append(row[1].strip())
 
             if row[3].strip().lower() == "gearbest":
                 part = "GB"

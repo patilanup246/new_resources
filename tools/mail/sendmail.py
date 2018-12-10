@@ -53,31 +53,34 @@ def send_email(to_addr_in, filepath_in):
     filepath = filepath_in
     r = os.path.exists(filepath)
     if r is False:
-
-        return
+        msg.attach(MIMEText('请按照自己的文件下载', 'plain', 'utf-8'))
     else:
         # 邮件正文是MIMEText:
         msg.attach(MIMEText('请按照自己的文件下载', 'plain', 'utf-8'))
         # 遍历指定目录，显示目录下的所有文件名
         pathDir = os.listdir(filepath)
         for allDir in pathDir:
-            child = os.path.join(filepath, allDir)
-            # print(child.decode('gbk'))  # .decode('gbk')是解决中文显示乱码问题)
+            if allDir.endswith(".csv"):
+                child = os.path.join(filepath, allDir)
+                # print(child.decode('gbk'))  # .decode('gbk')是解决中文显示乱码问题)
 
-            # 添加附件就是加上一个MIMEBase，从本地读取一个文件
-            with open(child, 'rb') as f:
-                # 设置附件的MIME和文件名，这里是txt类型:
-                mime = MIMEBase('file', 'xls', filename=allDir)
-                # 加上必要的头信息:
-                mime.add_header('Content-Disposition', 'attachment', filename=allDir)
-                mime.add_header('Content-ID', '<0>')
-                mime.add_header('X-Attachment-Id', '0')
-                # 把附件的内容读进来:
-                mime.set_payload(f.read())
-                # 用Base64编码:
-                encoders.encode_base64(mime)
-                # 添加到MIMEMultipart:
-                msg.attach(mime)
+                # 添加附件就是加上一个MIMEBase，从本地读取一个文件
+                try:
+                    with open(child, 'rb') as f:
+                        # 设置附件的MIME和文件名，这里是txt类型:
+                        mime = MIMEBase('file', 'xls', filename=allDir)
+                        # 加上必要的头信息:
+                        mime.add_header('Content-Disposition', 'attachment', filename=allDir)
+                        mime.add_header('Content-ID', '<0>')
+                        mime.add_header('X-Attachment-Id', '0')
+                        # 把附件的内容读进来:
+                        mime.set_payload(f.read())
+                        # 用Base64编码:
+                        encoders.encode_base64(mime)
+                        # 添加到MIMEMultipart:
+                        msg.attach(mime)
+                except Exception as e:
+                    continue
     try:
         server = smtplib.SMTP(smtp_server, 25)
         # server.starttls()
@@ -93,18 +96,21 @@ def send_email(to_addr_in, filepath_in):
 
 
 if __name__ == '__main__':
+    to_addr_in = "huguangjing@globalegrow.com"
+    filepath = "E:\\new_resources\\file\\20181206"
+    send_email(to_addr_in, filepath)
     # filepath = getName()
     # # to_addr_in = 'huguangjing@globalegrow.com,1132372453@qq.com'
     # to_addr_in = "huguangjing@globalegrow.com"
     # send_email(to_addr_in, filepath)
-    logging.info("running")
-    while True:
-        today = datetime.now()
-        if today.hour == 1 and today.minute == 1:
-            logging.info("时间到 即将读取文件")
-            filepath = getName()
-            # to_addr_in = 'huguangjing@globalegrow.com,1132372453@qq.com'
-            to_addr_in = "huguangjing@globalegrow.com,zhouliang1@globalegrow.com,linbing@globalegrow.com,chenshenshen@globalegrow.com,aff.fr@gearbest.com,wuzerong@globalegrow.com,guokaixi@globalegrow.com,duanjiamin@globalegrow.com,baiwenxiu@globalegrow.com,guoqian@globalegrow.com,amelia.h@globalegrow.com,yangmenglin@globalegrow.com,xiaolu2@globalegrow.com,sara@globaegrow.com"
-            send_email(to_addr_in, filepath)
-            time.sleep(3600)
-        time.sleep(30)
+    # logging.info("running")
+    # while True:
+    #     today = datetime.now()
+    #     if today.hour == 1 and today.minute == 1:
+    #         logging.info("时间到 即将读取文件")
+    #         filepath = getName()
+    #         # to_addr_in = 'huguangjing@globalegrow.com,1132372453@qq.com'
+    #         to_addr_in = "huguangjing@globalegrow.com,zhouliang1@globalegrow.com,linbing@globalegrow.com,chenshenshen@globalegrow.com,aff.fr@gearbest.com,wuzerong@globalegrow.com,guokaixi@globalegrow.com,duanjiamin@globalegrow.com,baiwenxiu@globalegrow.com,guoqian@globalegrow.com,amelia.h@globalegrow.com,yangmenglin@globalegrow.com,xiaolu2@globalegrow.com,sara@globaegrow.com"
+    #         send_email(to_addr_in, filepath)
+    #         time.sleep(3600)
+    #     time.sleep(30)

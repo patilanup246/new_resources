@@ -84,10 +84,11 @@ words = {
 
 db = connectMongo(True)
 googleUrlCollection = db["googleUrl"]
-
+webResourcescollection = db["webResources"]
 keyWordsCollection = db["keyWords"]
 
-domainList = []
+domainListGB = []
+domainListCL = []
 
 
 def sendRequest(url):
@@ -111,7 +112,7 @@ def getcms(keyword):
 
     word = words.get(language)
     if not word:
-        return
+        word = "en-undefined"
 
     url = "http://api.serpprovider.com/5bfdf4cd7d33d1d77b9875d1/google/en-us/{}/{}".format(word, keyword)
     logging.info("请求数据,关键字:{},url:{}".format(keyword, url))
@@ -134,8 +135,14 @@ def getcms(keyword):
         scheme = urlparse(data['url']).scheme
         # 域名
         domain = urlparse(data['url']).netloc
+        if not scheme or not domain:
+            continue
         link = scheme + '://' + domain  # 拼接链接
         # 判断是否在缓存中
+        if part == "GB":
+            domainList = domainListGB
+        else:
+            domainList = domainListCL
         if domain in domainList:
             logging.warn("该域名已经获取,存在缓存中,domain:{}".format(domain))
             continue
@@ -144,7 +151,27 @@ def getcms(keyword):
         result = googleUrlCollection.find_one({"domain": domain})
         if result:
             logging.warn("该域名已经获取,存在数据库中中,domain:{}".format(domain))
+            if result["part"] != part:
+                webresultList = list(webResourcescollection.find({"url": link}))
+                for result in webresultList:
+                    if part == "clothes":
+                        result["_id"] = result["_id"].replace("_GB_", "_clothes_")
+                    else:
+                        result["_id"] = result["_id"].replace("_clothes_", "_GB_")
+                    try:
+                        result["resPeople"] = resPeople
+                        result["part"] = part
+                        result["station"] = station
+                        mongoResult = webResourcescollection.find_one({"_id": result["_id"]})
+                        if not mongoResult:
+                            webResourcescollection.insert(result)
+                            logging.info("加入成功:{},_id:{}".format(part, result["_id"]))
+                    except Exception as e:
+                        logging.error(e)
+
             continue
+
+        # 查询是否在GB中
 
         title = data['title']  # 获取标题
         describition = data['desc']  # 获取描述
@@ -154,12 +181,12 @@ def getcms(keyword):
                    station)
 
     # 改变关键词获取状态
-    updateStatusKeyWord(keyword)
+    updateStatusKeyWord(keyword, part)
 
 
-def updateStatusKeyWord(keyword):
+def updateStatusKeyWord(keyword, part):
     try:
-        keyWordsCollection.update({"originKey": keyword}, {"$set": {"isGet": True}}, multi=True)
+        keyWordsCollection.update({"originKey": keyword, "part": part}, {"$set": {"isGet": True}}, multi=True)
         logging.info("关键字状态更改为已经获取:{}".format(keyword))
     except Exception as e:
         logging.error(e)
@@ -193,12 +220,7 @@ def insertItem(domain, url, sourceUrl, scheme, keyword, language, resPeople, tit
 def mainRunGet():
     # 循环获取关键字
     while True:
-        nameList = keyWordsCollection.distinct("resPeople", {"isGet": False, "platId": 1, "part": "GB"})
-        if not nameList:
-            time.sleep(100)
-            continue
-        name = random.choice(nameList)
-        resultList = keyWordsCollection.distinct("originKey", {"platId": 1, "isGet": False, "part": "GB"})
+        resultList = keyWordsCollection.distinct("originKey", {"$or": [{"platId": 1}, {"platId": 3}], "isGet": False})
         for result in resultList:
             keyWord = result
             getcms(keyWord)

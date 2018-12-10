@@ -49,7 +49,8 @@ userPsdItem = {
     # "brveo2166@inbox.ru": "B3Lt5zjlWk",
     # "DyachkovaEvridika89@inbox.ru": "OCRsw5VMth",
     # "EginaGuschina89.89@inbox.ru": "HfwxQpbMQP",
-    "jordan.macduff.1982@list.ru": "ltcw4356"
+    "jordan.macduff.1982@list.ru": "ltcw4356",
+    "13311631790": "ximalaya1"
 }
 
 
@@ -101,7 +102,7 @@ def loginFB(driver, url, userName, psd, name):
                     driver.find_element_by_xpath('//div[@class="_4t2a"]//button').click()
                     time.sleep(random.randint(3, 5))
         # keyWordList = list(collection.distinct("keyWord", {"getData": False}))[:1000]
-        keyWordList = mongoQuery(keyCollection, {"getData": False, "platId": platId, "resPeople": name})
+        keyWordList = mongoQuery(keyCollection, {"getData": False, "platId": platId})
         if not keyWordList:
             # keyWordList = mongoQuery(keyCollection, {"getData": False, "platId": platId, "resPeople": {"ne": "吴泽荣"}})
             # if not keyWordList:
@@ -249,14 +250,14 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                         pass
                     else:
                         groupNum = int(re.search(r"(.*?)位成员", groupNumStr).group(1).replace(",", "").strip())
-                        if language == "英语":
-                            if groupNum < 1000:
-                                logging.error("{},成员少于1000人".format(language))
-                                continue
-                        else:
-                            if groupNum < 500:
-                                logging.error("{},成员少于500人".format(language))
-                                continue
+                        # if language == "英语":
+                        #     if groupNum < 1000:
+                        #         logging.error("{},成员少于1000人".format(language))
+                        #         continue
+                        # else:
+                        #     if groupNum < 500:
+                        #         logging.error("{},成员少于500人".format(language))
+                        #         continue
                 except Exception as e:
                     logging.error(e)
                     continue
@@ -284,28 +285,28 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                     description = ""
 
                 # 判断是否在黑名单中
-                resultMongo = blackUrlcoll.find_one(
-                    {"url": link.replace("/about", ""), "platId": platId, "part": part})
-                if resultMongo:
-                    logging.error("存在黑名单中,url:{}".format(link.replace("/about", "")))
-                    continue
+                # resultMongo = blackUrlcoll.find_one(
+                #     {"url": link.replace("/about", ""), "platId": platId, "part": part})
+                # if resultMongo:
+                #     logging.error("存在黑名单中,url:{}".format(link.replace("/about", "")))
+                #     continue
                 # 是否存在黑名单中
-                if description:
-                    isExists, blackWord = black(description, part)
-                    if isExists:
-                        logging.error("存在非中文黑名单中,word:{},url:{}".format(blackWord, link.replace("/about", "")))
-                        try:
-                            blackUrlcoll.insert({
-                                "_id": str(platId) + "_" + part + "_" + link.replace("/about", ""),
-                                "url": link.replace("/about", ""),
-                                "platId": platId,
-                                "blackWord": blackWord,
-                                "part": part,
-                                "insertTime": int(time.time())
-                            })
-                        except Exception as e:
-                            logging.error(e)
-                        continue
+                # if description:
+                #     isExists, blackWord = black(description, part)
+                #     if isExists:
+                #         logging.error("存在非中文黑名单中,word:{},url:{}".format(blackWord, link.replace("/about", "")))
+                #         try:
+                #             blackUrlcoll.insert({
+                #                 "_id": str(platId) + "_" + part + "_" + link.replace("/about", ""),
+                #                 "url": link.replace("/about", ""),
+                #                 "platId": platId,
+                #                 "blackWord": blackWord,
+                #                 "part": part,
+                #                 "insertTime": int(time.time())
+                #             })
+                #         except Exception as e:
+                #             logging.error(e)
+                #         continue
 
                 if link in linkList:
                     continue
@@ -330,10 +331,10 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                     continue
 
                 # 是否存在存在发帖数不满足条件的苦中
-                result = invisibleUrlcoll.find_one({"url": link.replace("/about", ""), "platId": platId})
-                if result:
-                    logging.error("过去 30 天内发帖数没有达标,url:{}".format(link.replace("/about", "")))
-                    continue
+                # result = invisibleUrlcoll.find_one({"url": link.replace("/about", ""), "platId": platId})
+                # if result:
+                #     logging.error("过去 30 天内发帖数没有达标,url:{}".format(link.replace("/about", "")))
+                #     continue
                 # 最终有效的url
                 linkList.append(link)
             except Exception as e:
@@ -423,11 +424,10 @@ def black(desc, part):
         isExists = False
         for word in blackListall:
             if word in desc:
-                blackWord = word
+                blackWord += word + " "
                 logging.error("存在黑名单中,word:{}".format(word))
                 isExists = True
-                break
-        return isExists, blackWord
+        return isExists, blackWord.strip()
     except Exception as e:
         logging.error(traceback.format_exc())
 
@@ -451,6 +451,8 @@ def parsePage(response, url, resPeople, keyWord, language, part):
         except Exception as e:
             description = ""
 
+        descriptionUn = description
+
         # 群名称
         groupName = selector.xpath('//h1[@id="seo_h1_tag"]/a/text()')
         if not groupName:
@@ -466,14 +468,14 @@ def parsePage(response, url, resPeople, keyWord, language, part):
         except Exception as e:
             groupNum = 0
             return
-        if language == "英语":
-            if groupNum < 1000:
-                logging.error("{},成员少于1000人".format(language))
-                return
-        else:
-            if groupNum < 500:
-                logging.error("{},成员少于500人".format(language))
-                return
+        # if language == "英语":
+        #     if groupNum < 1000:
+        #         logging.error("{},成员少于1000人".format(language))
+        #         return
+        # else:
+        #     if groupNum < 500:
+        #         logging.error("{},成员少于500人".format(language))
+        #         return
         logging.info("groupNum:{},url:{}".format(groupNum, url))
 
         # 小组类型
@@ -489,32 +491,32 @@ def parsePage(response, url, resPeople, keyWord, language, part):
         except Exception as e:
             return
         # 处理过滤信息
-        if language == "英语":
-            if postNum < 100:
-                try:
-                    invisibleUrlcoll.insert({
-                        "_id": str(platId) + "_" + url,
-                        "url": url,
-                        "platId": 2,
-                        "postNum": postNum,
-                        "insertTime": int(time.time())
-                    })
-                except Exception as e:
-                    logging.error(e)
-                return
-        else:
-            if postNum < 50:
-                try:
-                    invisibleUrlcoll.insert({
-                        "_id": str(platId) + "_" + url,
-                        "url": url,
-                        "platId": 2,
-                        "postNum": postNum,
-                        "insertTime": int(time.time())
-                    })
-                except Exception as e:
-                    logging.error(e)
-                return
+        # if language == "英语":
+        #     if postNum < 100:
+        #         try:
+        #             invisibleUrlcoll.insert({
+        #                 "_id": str(platId) + "_" + url,
+        #                 "url": url,
+        #                 "platId": 2,
+        #                 "postNum": postNum,
+        #                 "insertTime": int(time.time())
+        #             })
+        #         except Exception as e:
+        #             logging.error(e)
+        #         return
+        # else:
+        #     if postNum < 50:
+        #         try:
+        #             invisibleUrlcoll.insert({
+        #                 "_id": str(platId) + "_" + url,
+        #                 "url": url,
+        #                 "platId": 2,
+        #                 "postNum": postNum,
+        #                 "insertTime": int(time.time())
+        #             })
+        #         except Exception as e:
+        #             logging.error(e)
+        #         return
         logging.info("postNum:{},url:{}".format(postNum, url))
 
         # 管理员链接
@@ -537,45 +539,49 @@ def parsePage(response, url, resPeople, keyWord, language, part):
         if not manager:
             manager = ''
         logging.info("manager:{},    url:{}".format(manager, url))
-
+        blackWord = ""
+        blackNum = 0
         if description:
             isExists, blackWord = black(description, part)
-            if isExists:
-                # 存在即存入数据数中
-                logging.error("存在非中文黑名单中,url:{}".format(url))
-                try:
-                    blackUrlcoll.insert({
-                        "_id": str(platId) + "_" + part + "_" + url,
-                        "url": url,
-                        "platId": platId,
-                        "blackWord": blackWord,
-                        "part": part,
-                        "insertTime": int(time.time())
-                    })
-                except Exception as e:
-                    logging.error(e)
-                return
+            # if isExists:
+            #     # 存在即存入数据数中
+            #     logging.error("存在非中文黑名单中,url:{}".format(url))
+            #     try:
+            #         blackUrlcoll.insert({
+            #             "_id": str(platId) + "_" + part + "_" + url,
+            #             "url": url,
+            #             "platId": platId,
+            #             "blackWord": blackWord,
+            #             "part": part,
+            #             "insertTime": int(time.time())
+            #         })
+            #     except Exception as e:
+            #         logging.error(e)
+            #     return
             # 翻译
             description = mainTranslate(description)
             isExists, blackWord = black(description, part)
-            if isExists:
-                # 存在即存入数据数中
-                logging.error("存在中文黑名单中,url:{}".format(url))
-                try:
-                    blackUrlcoll.insert({
-                        "_id": str(platId) + "_" + part + "_" + url,
-                        "url": url,
-                        "platId": platId,
-                        "blackWord": blackWord,
-                        "part": part,
-                        "insertTime": int(time.time())
-                    })
-                except Exception as e:
-                    logging.error(e)
-                return
+            # if isExists:
+            #     # 存在即存入数据数中
+            #     logging.error("存在中文黑名单中,url:{}".format(url))
+            #     try:
+            #         blackUrlcoll.insert({
+            #             "_id": str(platId) + "_" + part + "_" + url,
+            #             "url": url,
+            #             "platId": platId,
+            #             "blackWord": blackWord,
+            #             "part": part,
+            #             "insertTime": int(time.time())
+            #         })
+            #     except Exception as e:
+            #         logging.error(e)
+            #     return
+        if blackWord:
+            blackNum = len(blackWord.split(" "))
         fbresourcesCollection.insert_one({
             "_id": str(platId) + "_" + part + "_" + url,
             "description": description,
+            "descriptionUn": descriptionUn,
             "groupNum": groupNum,
             "url": url,
             "platId": platId,
@@ -588,7 +594,9 @@ def parsePage(response, url, resPeople, keyWord, language, part):
             "part": part,
             "keyWord": keyWord,
             "language": language,
-            "lastUpdate": int(time.time())
+            "lastUpdate": int(time.time()),
+            "blackWord": blackWord,
+            "blackNum": blackNum
         })
     except Exception as e:
         logging.error(traceback.format_exc())
@@ -610,7 +618,8 @@ def mainR(url, userName, psd, name):
 if __name__ == '__main__':
     # 构建线程
     nameList = []
-    nameList = keyCollection.distinct("resPeople", {"platId": 2, "getData": False})
+    # nameList = keyCollection.distinct("resPeople", {"platId": 2, "getData": False})
+    nameList = [1]
     threads = []
     urls = []
     names = []

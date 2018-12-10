@@ -14,18 +14,20 @@ from tools.useragent import USER_AGENTS
 #     'Accept-Language': 'zh-CN,zh;q=0.9',
 #     'Cookie': "__cfduid=ddb5f0de40238be38d1553f1b889485381542870547"
 # }
+
+cookiesList = [
+    "__cfduid=ddb5f0de40238be38d1553f1b889485381542870547; _ga=GA1.2.832673343.1543827483; intercom-id-dvzew6nm=3091c9ca-c6d4-406b-bd21-626447cc0537; __atuvc=2%7C49%2C2%7C50", ]
 whatrunHeaders = {
     "Host": "www.whatruns.com",
     "Connection": "keep-alive",
-    "Content-Length": "195",
+    # "Content-Length": "195",
     "Origin": "chrome-extension://cmkdbmfndkfgebldhnkbfhlneefdaaip",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36",
+    "User-Agent": UserAgent().chrome,
     "Content-type": "application/x-www-form-urlencoded",
     "Accept": "*/*",
     "Accept-Encoding": "gzip, deflate, br",
     "Accept-Language": "zh-CN,zh;q=0.9",
-    "Cookie": "__cfduid=ddb5f0de40238be38d1553f1b889485381542870547"
-
+    "Cookie": "__cfduid=ddb5f0de40238be38d1553f1b889485381542870547; _ga=GA1.2.832673343.1543827483; intercom-id-dvzew6nm=3091c9ca-c6d4-406b-bd21-626447cc0537; __atuvc=2%7C49%2C2%7C50"
 }
 
 adasd = {

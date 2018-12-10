@@ -92,7 +92,7 @@ def main(part, station, client, keyword, ad_group_id=None):
     data = []
     # 初始化适当的服务。
     targeting_idea_service = client.GetService(
-        'TargetingIdeaService', version='v201802')
+        'TargetingIdeaService', version='v201809')
 
     # 构造选择器对象并检索相关的关键字。
     selector = {
@@ -116,7 +116,10 @@ def main(part, station, client, keyword, ad_group_id=None):
 
     # 语种限定
     # Language setting (optional).
-    id = langueDict.get(keyword[2])
+    word = keyword[2]
+    if word == "希伯来语":
+        word = "希伯来"
+    id = langueDict.get(word)
     print(id)
     if not id:
         return
@@ -193,18 +196,18 @@ def main(part, station, client, keyword, ad_group_id=None):
 
 
 if __name__ == '__main__':
-    with open("keyword.csv", encoding="gbk", newline='', ) as csvfile:
+    with open("keyword.csv", encoding="UTF-8", newline='',errors="ignore" ) as csvfile:
         dataList = []
         csv_reader = csv.reader(csvfile)  # 使用csv.reader读取csvfile中的文件
         birth_header = next(csv_reader)  # 读取第一行每一列的标题
         for row in csv_reader:  # 将csv 文件中的数据保存到birth_data中
             dataList.append(row)
         adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
+        num = 1
         for row in dataList:
             if not row[0].strip():
                 continue
-
-            if row[6].strip().lower() == "gearbest":
+            if row[6].strip().lower() == "gearbest" or row[6].strip().lower() == "gb":
                 part = "GB"
                 station = "GearBest"
             elif row[6].strip().lower() == "zaful":
@@ -220,7 +223,7 @@ if __name__ == '__main__':
                 station = "Dresslily"
             else:
                 continue
-            if "facebook" in row[3].lower():
+            if "facebook" in row[3].lower() or "fb" in row[3].lower():
                 platId = 2
                 item = {
                     "_id": str(platId) + "_" + part + "_" + station + "_" + row[0],
@@ -241,10 +244,34 @@ if __name__ == '__main__':
                 try:
                     collection.insert(item)
                     print(item)
+                    num += 1
                 except Exception as e:
                     pass
-            if "youtube" in row[3].lower():
-
+            elif "web" in row[3].lower() or "fb" in row[3].lower():
+                platId = 3
+                item = {
+                    "_id": str(platId) + "_" + part + "_" + station + "_" + row[0],
+                    "originKey": row[0],
+                    "language": row[2],
+                    "resPeople": row[4],
+                    "isGet": False,
+                    "category": row[1],
+                    "keyWord": row[0],
+                    "hots": 0,
+                    "getData": False,
+                    "platId": platId,
+                    "part": part,
+                    "date": row[-2],
+                    "station": station,
+                    "insertTime": int(time.time())
+                }
+                try:
+                    collection.insert(item)
+                    print(item)
+                    num += 1
+                except Exception as e:
+                    pass
+            elif "youtube" in row[3].lower():
                 platId = 1
                 item = {
                     "_id": str(platId) + "_" + part + "_" + station + "_" + row[0],
@@ -266,15 +293,10 @@ if __name__ == '__main__':
                 try:
                     collection.insert(item)
                     print(item)
+                    num += 1
                 except Exception as e:
                     pass
 
-
-                # originKey = collection.find_one({"originKey": row[0], "platId": 1})
-                # if originKey:
-                #     print("存在:{}".format(originKey))
-                #     continue
-                #
                 # try:
                 #     main(part, station, adwords_client, row,
                 #          int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
@@ -282,3 +304,4 @@ if __name__ == '__main__':
                 #     print(traceback.format_exc())
                 #     dataList.append(row)
                 #     continue
+        print(num)

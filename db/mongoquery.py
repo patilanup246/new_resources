@@ -1,7 +1,7 @@
 def mongoQuery(collection, query):
     result_list = []
     skip_num = 0
-    limit_num = 1000
+    limit_num = 10000
     while True:
         result_list_one = list(collection.find(query).skip(skip_num).limit(limit_num))
         result_list += result_list_one

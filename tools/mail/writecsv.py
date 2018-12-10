@@ -200,8 +200,6 @@ def getName():
     for name in nameList:
         if not name:
             continue
-        if name != "陈慎慎":
-            continue
         fileName = filepath + "youtube_" + name + "_{}_{}_{}.csv".format(today.year, today.month, today.day)
         logging.info(fileName)
         writeCsv(fileName, name)

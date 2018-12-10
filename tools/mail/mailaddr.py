@@ -211,7 +211,8 @@ def take_thread():
         threadNum = 10
         resultList = list(
             userCollection.find({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,
-                                 "VideoTitleCount": {"$gte": 4}}).limit(10))
+                                 "VideoTitleCount": {"$gte": 4}, "viewCountAvg": {"$gte": 3000},
+                                 "subscriberCount": {"$gte": 5000}}).limit(10))
         if not resultList:
             logging.error("没有需要获取邮箱的数据")
             time.sleep(60)

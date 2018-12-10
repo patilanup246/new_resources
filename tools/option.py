@@ -15,7 +15,7 @@ def getOption(headless):
             'automatic_downloads': 1,
         }
     }
-    options.add_experimental_option('prefs', prefs)
+    # options.add_experimental_option('prefs', prefs)
     # 默认中文
     options.add_argument("–lang=zh-CN")
     options.add_argument("–start-maximized")

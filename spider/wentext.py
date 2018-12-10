@@ -25,7 +25,7 @@ from tools.request_headers import *
 import re
 import time
 import jsonpath
-from spider.getspider import getSimilarwebInfo, getHtml, sendRequestWhatrun, sendRequestalexa, getViewInfo
+from spider.getspider import getSimilarwebInfo, getHtml, sendRequestWhatrun, sendRequestalexa
 from lxml import etree
 from urllib.request import urlparse
 from googletrans import Translator
@@ -33,8 +33,6 @@ import json
 import threading
 import pymongo
 import csv
-
-platId = 3
 
 blackWordList = [
     "买家",
@@ -135,10 +133,40 @@ cmsListErro = [
     "craft cms",
     "qubit opentag",
     "3dcart",
-    "vtex enterprise",
-    "prestashop",
-    "demandware",
+    "vtex enterprise"
 ]
+
+
+def getViewInfo(domain):  # 获取网站流量相关数据
+    viewCount, country, percent, relateLinkSimilarSites = 0, "", "", ""
+    try:
+        url = 'https://api.similarweb.com/v1/SimilarWebAddon/' + str(domain).replace('www.', '') + '/all'
+        data = getSimilarwebInfo(url, similarweb)
+        html = json.loads(data)
+        try:
+            viewCount = int(jsonpath.jsonpath(html, "$..Visits")[0])
+        except:
+            viewCount = 0
+        try:
+            count = jsonpath.jsonpath(html, "$..TopCountryShares")[0][0]
+            country = countrycode[str(count['Country'])]
+        except Exception as e:
+            count = {}
+            country = ''
+        try:
+            percent = count['Value']
+            percent = '%.2f%%' % (percent * 100)
+        except:
+            percent = 0
+        relateLinkSimilarSitesList = jsonpath.jsonpath(html, "$..SimilarSites..Site")
+        if relateLinkSimilarSitesList:
+            relateLinkSimilarSites = "\n".join(relateLinkSimilarSitesList).strip()
+        else:
+            relateLinkSimilarSites = ""
+    except Exception as e:
+        logging.error(e)
+    logging.info("国家:[{}],观看量:[{}],百分比:[{}]".format(country, viewCount, percent))
+    return viewCount, country, percent, relateLinkSimilarSites
 
 
 # 请求whatrun  API 获取框架信息
@@ -286,7 +314,7 @@ def dealResponse(responseBody, mongoUrl):
     try:
         title = selector.xpath('//title/text()')[0].replace('\n', '').replace('  ', ' ').strip()
     except:
-        logging.error("url:{},标题为空".format(mongoUrl))
+        logging.error("url:{}".format(mongoUrl))
         title = ""
 
     # 获取描述信息
@@ -338,79 +366,80 @@ def dealResponse(responseBody, mongoUrl):
 
 
 def dealHeaderFooterInfo(selector):
-    headerStr, footerStr, headerZH, footerZH, fhBlackWord, fhBlackWordCount = "", "", "", "", "", 0
-    try:
-        textList = selector.xpath("//header//text()")
+    textList = selector.xpath("//header//text()")
+    if not textList:
         node = selector.xpath("//*[contains(@class,'header')]") + selector.xpath(
             "//*[contains(@id,'header')]") + selector.xpath("//*[contains(@class,'Header')]") + selector.xpath(
             "//*[contains(@id,'Header')]")
         if node:
-            for i in node:
-                textList += i.xpath(".//text()")
+            textList = node[0].xpath(".//text()")
         else:
-            textList += selector.xpath("//head//text()")
+            node = selector.xpath("//head")
+            if node:
+                textList = node[0].xpath(".//text()")
+            else:
+                textList = []
 
-        if not textList:
-            headerStr = ""
-        else:
-            textStr = ""
-            for text in list(set(textList)):
-                text = text.replace("\n", "").strip()
-                if not text:
-                    continue
-                text = text + ","
-                textStr += text
-            headerStr = textStr.strip()[:-1]
-        textList = selector.xpath("//footer//text()")
+    if not textList:
+        headerStr = ""
+    else:
+        textStr = ""
+        for text in list(set(textList)):
+            text = text.replace("\n", "").strip()
+            if not text:
+                continue
+            text = text + ","
+            textStr += text
+        headerStr = textStr.strip()[:-1]
+    textList = selector.xpath("//footer//text()")
+    if not textList:
         node = selector.xpath("//*[contains(@class,'footer')]") + selector.xpath(
             "//*[contains(@id,'footer')]") + selector.xpath("//*[contains(@class,'Footer')]") + selector.xpath(
             "//*[contains(@id,'Footer')]")
         if node:
-            for i in node:
-                textList += i.xpath(".//text()")
+            textList = node[0].xpath(".//text()")
         else:
             textList = []
 
-        if not textList:
-            footerStr = ""
-        else:
-            textStr = ""
-            for text in list(set(textList)):
-                text = text.replace("\n", "").strip()
-                if not text:
-                    continue
-                text = text + ","
-                textStr += text
-            footerStr = textStr.strip()[:-1]
-        if not footerStr and not headerStr:
-            headerZH = ""
+    if not textList:
+        footerStr = ""
+    else:
+        textStr = ""
+        for text in list(set(textList)):
+            text = text.replace("\n", "").strip()
+            if not text:
+                continue
+            text = text + ","
+            textStr += text
+        footerStr = textStr.strip()[:-1]
+    if not footerStr and not headerStr:
+        headerZH = ""
+        footerZH = ""
+    else:  # 两者至少有一个
+        if not footerStr:
+            headerZH = mainTranslate(headerStr[:4000])
             footerZH = ""
-        else:  # 两者至少有一个
-            if not footerStr:
-                headerZH = mainTranslate(headerStr[:4000])
-                footerZH = ""
-            elif not headerStr:
-                footerZH = mainTranslate(footerStr[:4000])
-                headerZH = ""
-            else:
-                # 合并翻译
-                headerZH = mainTranslate(headerStr[:4000])
-                footerZH = mainTranslate(footerStr[:4000])
-        fhBlackWord = ""
-        fhBlackWordCount = 0
-        for word in blackWordList:
-            if word in footerStr or word in headerZH or word in footerZH or word in headerStr:
-                fhBlackWord += word + " "
-                fhBlackWordCount += 1
-        fhBlackWord = fhBlackWord.strip()
-    except Exception as e:
-        logging.error(traceback.format_exc())
+        elif not headerStr:
+            footerZH = mainTranslate(footerStr[:4000])
+            headerZH = ""
+        else:
+            # 合并翻译
+            headerZH = mainTranslate(headerStr[:4000])
+            footerZH = mainTranslate(footerStr[:4000])
+    fhBlackWord = ""
+    fhBlackWordCount = 0
+    for word in blackWordList:
+        if word in footerStr or word in headerZH or word in footerZH or word in headerStr:
+            fhBlackWord += word + " "
+            fhBlackWordCount += 1
+    fhBlackWord = fhBlackWord.strip()
 
     return headerStr, footerStr, headerZH, footerZH, fhBlackWord, fhBlackWordCount
 
 
 def get_access_token(website):  # 获取邮箱数据
     connect = []
+    # connect1 = ""
     try:
         url = 'https://app.snov.io/oauth/access_token'
         params = {
@@ -418,10 +447,13 @@ def get_access_token(website):  # 获取邮箱数据
             'client_id': '4807dc4e3735fbe657bfcaffbce0d418',
             'client_secret': '631b2b69947b0db37f27dde1bfbe6a08'
         }
-        res = requests.post(url=url, data=params, verify=False, timeout=30)
+        res = requests.post(url=url, data=params, verify=False, timeout=5)
         resText = res.text
-        # logging.info(resText)
-        token = json.loads(resText)['access_token']
+        logging.info(resText)
+        try:
+            token = json.loads(resText)['access_token']
+        except Exception as e:
+            return
         logging.info(token)
         params = {'access_token': token,
                   'domain': website,
@@ -429,15 +461,10 @@ def get_access_token(website):  # 获取邮箱数据
                   'limit': 100
                   }
         url = 'https://app.snov.io/restapi/get-domain-emails-with-info'
-        res = requests.post(url=url, data=params, verify=False, timeout=30)
-        # logging.info(res.text)
+        res = requests.post(url=url, data=params, verify=False, timeout=5)
+        logging.info(res.text)
         emails = []
-        responseBody = json.loads(res.text)
-        errType = jsonpath.jsonpath(responseBody, "$..error_description")
-        if errType:
-            if errType[0] == "Domain is invalid":
-                return connect
-        for x in responseBody['emails']:
+        for x in json.loads(res.text)['emails']:
             try:
                 status = x['status']
                 email = x['email']
@@ -462,8 +489,6 @@ def get_access_token(website):  # 获取邮箱数据
             connect.append([status, email, firstName, lastName, sourcePage, position])
     except Exception as e:
         logging.error(traceback.format_exc())
-        logging.info(responseBody)
-        return None
     return connect
 
 
@@ -521,8 +546,16 @@ def updateStatusGoogleUrl(mongoUrl):
 
 
 # 主调度器
-def mainRun(result):
+def mainRun(result, newdata):
     mongoUrl = result["url"]
+    # 对url去重
+    mmsDomain = "http://mms.gloapi.com/"
+    # cmmsDomain = "http://cmms.gloapi.com.a.php5.egomsl.com/"
+    # isExists = checkWebUrl(mongoUrl, mmsDomain)
+    # if isExists:
+    #     updateStatusGoogleUrl(mongoUrl)
+    #     logging.error("存在mms中:{}".format(mongoUrl))
+    #     return
 
     resPeople = result.get("name")
     if not resPeople:
@@ -604,6 +637,10 @@ def mainRun(result):
             "blackStr": blackStr,
             "blackNum": blackNum
         }
+        wrdata = [mongoUrl, whiteNum, whiteStr, titleChinese, viewCountSimilarweb, countrySimilarweb, percentSimilarweb,
+                  facebook, instagram, youtube, twitter]
+        print(wrdata)
+        newdata.writerow(list(wrdata))
         if emailStr:
             emailList = list(set(emailStr.split("\n")))
             for num, email in enumerate(emailList):
@@ -611,31 +648,42 @@ def mainRun(result):
                     continue
                 item["_id"] = "3_" + part + "_" + mongoUrl + "_" + str(num + 1)
                 item["emailStr"] = email
-                try:
-                    webResourcesCollection.insert(item)
-                except Exception as e:
-                    pass
-                updateStatusGoogleUrl(mongoUrl)
-                logging.info("插入成功,url:{}".format(mongoUrl))
+                # wrdata.append(item["_id"])
+                # wrdata.append(item["emailStr"])
+                if (fhBlackWordCount == 0) and (blackNum == 0):
+                    print('.................................................')
+                    try:
+                        # 插入数据
+                        newdata.writerow(list(wrdata))
+                        logging.info("插入成功,url:{}".format(mongoUrl))
+                    except Exception as e:
+                        print(traceback.format_exc())
+
         else:
             item["_id"] = "3_" + part + "_" + mongoUrl
             item["emailStr"] = emailStr
-            try:
-                webResourcesCollection.insert(item)
-            except Exception as e:
-                pass
-            updateStatusGoogleUrl(mongoUrl)
-            logging.info("插入成功,url:{}".format(mongoUrl))
+            # wrdata.append(item["_id"])
+            # wrdata.append(item["emailStr"])
+            if (fhBlackWordCount != 0) and (blackNum != 0):
+                print('.................................................')
+                try:
+                    newdata.writerow(list(wrdata))
+                    newdata.writerow([1, 2, 3])
+                    logging.info("插入成功,url:{}".format(mongoUrl))
+                except Exception as e:
+                    print(traceback.format_exc())
+
         try:
             if whiteNum >= 6:
-                dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, part, station, mongoUrl)
+                # 大于等于6 的相关url处理
+                dealRelateLink(relateLinkSimilarSites, relateLinksAlexa)
         except Exception as e:
             logging.error(e)
     except Exception as e:
         logging.error(traceback.format_exc())
 
 
-def dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, part, station, sourceUrl):
+def dealRelateLink(relateLinkSimilarSites, relateLinksAlexa):
     urlList = []
     if relateLinkSimilarSites:
         urlList = urlList + relateLinkSimilarSites.split("\n")
@@ -655,7 +703,7 @@ def dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, part, station, sour
         item = {
             "_id": _id,
             "url": url,
-            "sourceUrl": sourceUrl,
+            "sourceUrl": result["url"],
             "domain": domain,
             "scheme": scheme,
             "keyWord": "",
@@ -670,10 +718,9 @@ def dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, part, station, sour
             "part": part
         }
         try:
-            resultMongo = urlCollection.find_one({"domain": domain})
-            if not resultMongo:
+            result = urlCollection.find_one({"domain": domain})
+            if not result:
                 urlCollection.insert(item)
-                logging.info("新增url:{}成功".format(url))
             else:
                 logging.warn("存在数据库中:{}".format(domain))
         except Exception as e:
@@ -681,22 +728,20 @@ def dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, part, station, sour
 
 
 def getMongoUrl():
-    while True:
-        resultList = list(
-            urlCollection.find({"isData": False}).limit(5).sort([('insertTime', pymongo.DESCENDING)]))
-        if not resultList:
-            logging.error("数据库中没有需求url,时间:{}".format(int(time.time())))
-            time.sleep(60)
-            continue
-        # resultList = []
-        # file = ""
-        # csv_reader = csv.reader(open(file, errors="ignore"))
-        # for row in csv_reader:
-        #     result["url"] = row[0]
-        #     result["language"] = row[1]
-        #     resultList.append(result)
+    # resultList = []
+    # holeurl = csv.reader(open('linbing.csv','r',encoding="utf-8"))
+    # for data in holeurl:
+    #     result = {}
+    #     result['url'] = data[0]
+    #     resultList.append(result)
+    newdata = csv.writer(open("./llll.csv", "w+", newline='', encoding="utf_8_sig"))
+    with open("./llll.csv", "w+", newline='', encoding="utf_8_sig") as csvFile:
+        newdata = csv.writer(csvFile)
+        resultList = [{"url": "https://www.apple.com"}, {"url": "https://www.apple.com"},
+                      {"url": "https://www.apple.com"}, {"url": "https://www.apple.com"},
+                      {"url": "https://www.apple.com"}, {"url": "https://www.apple.com"}]
         for result in resultList:
-            mainRun(result)
+            mainRun(result, newdata)
 
 
 def mainRBackWhatRun():
@@ -704,24 +749,19 @@ def mainRBackWhatRun():
         if sys.argv[1] == "debug":
             urlList = list(webResourcesCollection.find(
                 {"whatRun": {"$exists": 0}, "whiteNum": {"$gte": 3}, "fhBlackWordCount": {"$lte": 1},
-                 "blackNum": {"$lte": 1}, "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                                  {"iscmms": False, "part": "clothes"}]}).limit(5))
+                 "blackNum": {"$lte": 1}, "ismms": False}).limit(5))
         else:
             urlList = list(webResourcesCollection.find(
                 {"whatRun": {"$exists": 0}, "whiteNum": {"$gte": 3}, "fhBlackWordCount": {"$lte": 1},
-                 "blackNum": {"$lte": 1}, "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                                  {"iscmms": False, "part": "clothes"}]}).limit(1000).sort(
-                [("insertTime", pymongo.DESCENDING)]))
+                 "blackNum": {"$lte": 1}, "ismms": False}))
         if not urlList:
             urlList = list(webResourcesCollection.find(
-                {"whatRun": {"$exists": 0}, "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                                    {"iscmms": False, "part": "clothes"}]}).limit(1000))
+                {"whatRun": {"$exists": 0}}))
             if not urlList:
                 time.sleep(30)
                 continue
         urls = []
         for result in urlList:
-            time.sleep(30)
             mongoUrl = result["url"]
             if mongoUrl in urls:
                 continue
@@ -753,17 +793,10 @@ class TitleBack(threading.Thread):
             while True:
                 if sys.argv[1] == "debug":
                     resultList = list(
-                        webResourcesCollection.find(
-                            {"title": "", "header": "", "footer": "", "desc": "", "viewCount": {"$gte": 10000}}).limit(
-                            5))
+                        webResourcesCollection.find({"title": "", "header": "", "footer": "", "desc": ""}).limit(5))
                 else:
                     resultList = list(
-                        webResourcesCollection.find(
-                            {"title": "", "header": "", "footer": "", "desc": "", "viewCount": {"$gte": 10000},
-                             "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                     {"iscmms": False, "part": "clothes"}]}).limit(
-                            1000).sort(
-                            [("insertTime", pymongo.DESCENDING)]))
+                        webResourcesCollection.find({"title": "", "header": "", "footer": "", "desc": ""}))
                 if not resultList:
                     time.sleep(60)
                     continue
@@ -843,13 +876,12 @@ class TitleBack(threading.Thread):
                     if whiteNum >= 6:
                         relateLinkSimilarSites = result["relateLinkSimilarSites"]
                         relateLinksAlexa = result["relateLinksAlexa"]
-                        dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, result["part"], result["station"],
-                                       result["url"])
+                        dealRelateLink(relateLinkSimilarSites, relateLinksAlexa)
                 except Exception as e:
                     logging.error(e)
 
             else:
-                logging.error("依旧没有获取到标题{}".format(url))
+                logging.error("依旧没有获取到标题")
 
         except Exception as e:
             logging.error(traceback.format_exc())
@@ -866,66 +898,42 @@ class GetLinMail(threading.Thread):
         while True:
             # 查询数据
             resultList = list(webResourcesCollection.find(
-                {"emailStr": "", "connect": "", "title": {"$ne": ""}, "whiteNum": {"$gte": 2},
-                 "isGetLink": False,
-                 "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                         {"iscmms": False, "part": "clothes"}], "fhBlackWordCount": 0, "blackNum": 0,
-                 "viewCount": {"$gte": 10000},
-                 "whatRun": {"$exists": 1}, "csvLoad": False}).limit(100))
-
+                {"emailStr": "", "connect": "", "title": {"$ne": ""}, "whiteNum": {"$gte": 5},
+                 "isGetLink": False}).limit(5))
             if not resultList:
                 time.sleep(600)
                 logging.error("目前没有数据需要获取邮箱")
                 continue
-            urls = []
             for result in resultList:
+                time.sleep(10)
                 url = result["url"]
-                if url in urls:
-                    continue
-                urls.append(url)
-
-                whatRun = result.get("whatRun")
-                if whatRun:
-                    for word in cmsListErro:
-                        if str(whatRun).lower().find(word.lower()) >= 0:
-                            logging.error("获取邮箱时,whatrun出现黑名单:{},url:{}".format(word, url))
-                            webResourcesCollection.update_one({"url": url}, {"$set": {"isGetLink": True}})
-                            continue
-
                 part = result["part"]
                 domain = urlparse(url).netloc
                 emailList = get_access_token(domain)
-                if emailList == None:
-                    logging.error("获取邮箱失败:{}".format(url))
-                    continue
                 if emailList:
-                    # 查询是否在其他part
-                    for result in list(webResourcesCollection.find({"url": url})):
-                        part = result["part"]
-                        logging.info("url:{}有搜索到邮箱,邮箱个数:{},part:{}".format(url, len(emailList), part))
-                        webResourcesCollection.remove({"url": result["url"], "part": part})
-                        for num, email in enumerate(emailList):
-                            # 删除以前的数据
-                            result["_id"] = "3_" + part + "_" + url + "_" + str(num + 1)
-                            # [status, email, firstName, lastName, sourcePage, position]
-                            if not email[1].strip():
-                                continue
-                            result["emailStr"] = email[1].strip()
-                            result["status"] = email[0]
-                            result["firstName"] = email[2]
-                            result["lastName"] = email[3]
-                            result["sourcePage"] = email[4]
-                            result["position"] = email[5]
-                            result["isGetLink"] = True
-                            try:
-                                webResourcesCollection.insert(result)
-                            except Exception as e:
-                                logging.error("新增邮箱插入数据失败,原因:{}".format(traceback.format_exc()))
+                    logging.info("url:{}有搜索到邮箱".format(url))
+                    webResourcesCollection.remove({"_id": result["_id"]})
+                    for num, email in enumerate(emailList):
+                        # 删除以前的数据
+                        result["_id"] = "3_" + part + "_" + url + "_" + str(num + 1)
+                        # [status, email, firstName, lastName, sourcePage, position]
+                        if not email[1].strip():
+                            continue
+                        result["emailStr"] = email[1].strip()
+                        result["status"] = email[0]
+                        result["firstName"] = email[2]
+                        result["lastName"] = email[3]
+                        result["sourcePage"] = email[4]
+                        result["position"] = email[5]
+                        result["isGetLink"] = True
+                        try:
+                            webResourcesCollection.insert(result)
+                        except Exception as e:
+                            pass
                 else:
                     # 更新状态代表已经获取数据
                     logging.error("url:{}没有收到邮箱".format(url))
-                    webResourcesCollection.update({"url": url}, {"$set": {"isGetLink": True}}, multi=True)
-                time.sleep(30)
+                    webResourcesCollection.update_one({"url": url}, {"$set": {"isGetLink": True}})
 
 
 class backHeaderFooter(threading.Thread):
@@ -938,20 +946,13 @@ class backHeaderFooter(threading.Thread):
             if sys.argv[1] == "debug":
                 resultList = list(
                     webResourcesCollection.find(
-                        {"header": "", "footer": "", "whiteNum": {"$gte": 3}, "title": {"$ne": ""},
-                         "viewCount": {"$gte": 10000}}).limit(5))
+                        {"header": "", "footer": "", "whiteNum": {"$gte": 3}, "title": {"$ne": ""}}).limit(5))
             else:
                 resultList = list(webResourcesCollection.find(
-                    {"header": "", "footer": "", "whiteNum": {"$gte": 3}, "title": {"$ne": ""},
-                     "viewCount": {"$gte": 10000}, "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                                           {"iscmms": False, "part": "clothes"}]}).limit(1000).sort(
-                    [("insertTime", pymongo.DESCENDING)]))
+                    {"header": "", "footer": "", "whiteNum": {"$gte": 3}, "title": {"$ne": ""}}))
             if not resultList:
                 logging.error("没有需要回补headers和footer的数据")
-                resultList = list(webResourcesCollection.find(
-                    {"header": "", "footer": "", "title": {"$ne": ""}, "viewCount": {"$gte": 10000},
-                     "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                             {"iscmms": False, "part": "clothes"}]}).limit(1000))
+                resultList = list(webResourcesCollection.find({"header": "", "footer": "", "title": {"$ne": ""}}))
                 if not resultList:
                     time.sleep(60)
                     continue
@@ -965,141 +966,83 @@ class backHeaderFooter(threading.Thread):
                 self.dealUrl(url)
 
     def dealUrl(self, url):
+        responseStr = getHtml(url, webResourcesCollection)
+        if not responseStr:
+            return
         try:
-            responseStr = getHtml(url, webResourcesCollection)
-            if not responseStr:
-                return
-            try:
-                selector = etree.HTML(responseStr)
-            except Exception as e:
-                print(e)
-                selector = etree.HTML(responseStr.decode("utf-8"))
-                return
-
-            headerStr, footerStr, headerZH, footerZH, fhBlackWord, fhBlackWordCount = dealHeaderFooterInfo(selector)
-            if headerStr or footerStr:
-                webResourcesCollection.update({"url": url}, {"$set": {
-                    "header": headerStr,
-                    "footer": footerStr,
-                    "headerZH": headerZH,
-                    "footerZH": footerZH,
-                    "fhBlackWord": fhBlackWord,
-                    "fhBlackWordCount": fhBlackWordCount
-                }}, multi=True)
-                logging.info("新增header信息{}".format(url))
-            else:
-                webResourcesCollection.update({"url": url}, {"$set": {
-                    "header": "没有header信息",
-                    "footer": "没有footer信息",
-                    "headerZH": "",
-                    "footerZH": "",
-                    "fhBlackWord": "",
-                    "fhBlackWordCount": 0
-                }}, multi=True)
-                logging.error("依旧没有获取到header和footer信息:{}".format(url))
+            selector = etree.HTML(responseStr)
         except Exception as e:
-            logging.error(traceback.format_exc())
             return
 
-
-class backCountry(threading.Thread):
-    def __init__(self, collection):
-        threading.Thread.__init__(self)
-        self.collection = collection
-
-    def run(self):
-        while True:
-            resultList = list(
-                self.collection.find({country: "", "whiteNum": {"$gte": 2}, "blackNum": 0, "fhBlackWordCount": 0,
-                                      "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                              {"iscmms": False, "part": "clothes"}]}).limit(1000).sort(
-                    [("insertTime", pymongo.DESCENDING)]))
-            urls = []
-            for result in resultList:
-                url = result["url"]
-                if url in urls:
-                    continue
-                urls.append(url)
-                self.dealResult(result)
-
-    def dealResult(self, result):
-        url = result["url"]
-        domain = urlparse(url).netloc
-        viewCountSimilarweb, countrySimilarweb, percentSimilarweb, relateLinkSimilarSites = getViewInfo(domain)
-        if countrySimilarweb:
-            self.collection.update({"url": url}, {"$set": {
-                "country": countrySimilarweb,
-                "viewCount": viewCountSimilarweb,
-                "percent": percentSimilarweb,
-                "relateLinkSimilarSites": relateLinkSimilarSites
+        headerStr, footerStr, headerZH, footerZH, fhBlackWord, fhBlackWordCount = dealHeaderFooterInfo(selector)
+        if headerStr or footerStr:
+            webResourcesCollection.update({"url": url}, {"$set": {
+                "header": headerStr,
+                "footer": footerStr,
+                "headerZH": headerZH,
+                "footerZH": footerZH,
+                "fhBlackWord": fhBlackWord,
+                "fhBlackWordCount": fhBlackWordCount
             }}, multi=True)
-            logging.info("回补国家信息成功:{},国家:{}".format(url, countrySimilarweb))
+            logging.info("新增header信息{}".format(url))
         else:
-            logging.error("依旧没有回不到国家信息,url:{}".format(url))
+            logging.error("依舊沒有獲取到:{}".format(url))
 
 
 if __name__ == '__main__':
-    # 获取lin邮箱
-    linTh = GetLinMail()
-    linTh.start()
+    # # 验证邮箱
+    # verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+    # verifyMailth.start()
+    #
+    # # 回补mainRBackWhatRun信息
+    # WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
+    # WhatRunth.start()
+    #
+    # # web端去重mms
+    # readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
+    # readMongowebMMStripth.start()
+    #
+    # # 回补没有标题的数据
+    # titleObj = TitleBack()
+    # titleObj.start()
 
-    # 回补国家
-    countryth = backCountry(webResourcesCollection)
-    countryth.start()
-
-    # 验证邮箱
-    verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-    verifyMailth.start()
-
-    # 回补mainRBackWhatRun信息
-    WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
-    WhatRunth.start()
-
-    # web端去重mms
-    readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
-    readMongowebMMStripth.start()
-
-    # 回补没有标题的数据
-    titleObj = TitleBack()
-    titleObj.start()
-
-    # # 抓取web端详细信息
+    # 抓取web端详细信息
     webth = threading.Thread(target=getMongoUrl, args=())
     webth.start()
 
     # 回补所有的数据header 和 footer为空的数据
-    backHeaderFooterOBJ = backHeaderFooter()
-    backHeaderFooterOBJ.start()
+    # backHeaderFooterOBJ = backHeaderFooter()
+    # backHeaderFooterOBJ.start()
 
-    while True:
-        if not verifyMailth.is_alive():
-            # 验证邮箱
-            verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-            verifyMailth.start()
-
-        if not WhatRunth.is_alive():
-            # 回补mainRBackWhatRun信息
-            WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
-            WhatRunth.start()
-
-        if not readMongowebMMStripth.is_alive():
-            # web端去重mms
-            readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
-            readMongowebMMStripth.start()
-
-        if not titleObj.is_alive():
-            # 回补没有标题的数据
-            titleObj = TitleBack()
-            titleObj.start()
-
-        if not webth.is_alive():
-            # 抓取web端详细信息
-            webth = threading.Thread(target=getMongoUrl, args=())
-            webth.start()
-
-        if not backHeaderFooterOBJ.is_alive():
-            # 回补所有的数据header 和 footer为空的数据
-            backHeaderFooterOBJ = backHeaderFooter()
-            backHeaderFooterOBJ.start()
-
-        time.sleep(10)
+    # while True:
+    #     if not verifyMailth.is_alive():
+    #         # 验证邮箱
+    #         verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+    #         verifyMailth.start()
+    #
+    #     if not WhatRunth.is_alive():
+    #         # 回补mainRBackWhatRun信息
+    #         WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
+    #         WhatRunth.start()
+    #
+    #     if not readMongowebMMStripth.is_alive():
+    #         # web端去重mms
+    #         readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
+    #         readMongowebMMStripth.start()
+    #
+    #     if not titleObj.is_alive():
+    #         # 回补没有标题的数据
+    #         titleObj = TitleBack()
+    #         titleObj.start()
+    #
+    #     if not webth.is_alive():
+    #         # 抓取web端详细信息
+    #         webth = threading.Thread(target=getMongoUrl, args=())
+    #         webth.start()
+    #
+    #     if not backHeaderFooterOBJ.is_alive():
+    #         # 回补所有的数据header 和 footer为空的数据
+    #         backHeaderFooterOBJ = backHeaderFooter()
+    #         backHeaderFooterOBJ.start()
+    #
+    #     time.sleep(10)
