@@ -12,7 +12,6 @@ import requests
 from tools.getip import getIp
 import logging
 import random
-#   kjglkja
 from fake_useragent import UserAgent
 
 from tools.useragent import USER_AGENTS

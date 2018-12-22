@@ -121,7 +121,9 @@ blackUrlCollection = db["blackUrl"]
 webResourcesCollection = db["webResources"]
 
 black = blackWhiteCollection.distinct("word", {"isBlack": True, "platId": 3, "part": "GB"})
+# black   = blackWhiteCollection.distinct("word", {"isBlack": True, "platId": 3, "part": "clothes","station":"Zaful"})
 white = blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 3, "part": "GB"})
+# white  = blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 3, "part": "GB"})
 
 cmsListErro = [
     "bigcommerce",
@@ -281,7 +283,7 @@ def dealResponse(responseBody, mongoUrl):
         selector = etree.HTML(responseBody.decode())
 
     # 获取邮箱信息
-    emailStr = getMailPage(responseBody, selector)
+    emailStr = ""
     # 获取标题
     try:
         title = selector.xpath('//title/text()')[0].replace('\n', '').replace('  ', ' ').strip()
@@ -874,8 +876,8 @@ class GetLinMail(threading.Thread):
                  "whatRun": {"$exists": 1}, "csvLoad": False}).limit(100))
 
             if not resultList:
-                time.sleep(600)
                 logging.error("目前没有数据需要获取邮箱")
+                time.sleep(600)
                 continue
             urls = []
             for result in resultList:
@@ -1048,8 +1050,8 @@ if __name__ == '__main__':
     countryth.start()
 
     # 验证邮箱
-    verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-    verifyMailth.start()
+    # verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+    # verifyMailth.start()
 
     # 回补mainRBackWhatRun信息
     WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
@@ -1063,7 +1065,7 @@ if __name__ == '__main__':
     titleObj = TitleBack()
     titleObj.start()
 
-    # # 抓取web端详细信息
+    # 抓取web端详细信息
     webth = threading.Thread(target=getMongoUrl, args=())
     webth.start()
 
@@ -1072,10 +1074,10 @@ if __name__ == '__main__':
     backHeaderFooterOBJ.start()
 
     while True:
-        if not verifyMailth.is_alive():
-            # 验证邮箱
-            verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-            verifyMailth.start()
+        # if not verifyMailth.is_alive():
+        #     # 验证邮箱
+        #     verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+        #     verifyMailth.start()
 
         if not WhatRunth.is_alive():
             # 回补mainRBackWhatRun信息

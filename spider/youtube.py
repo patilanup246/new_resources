@@ -8,6 +8,7 @@ sys.path.append("./..")
 from tools.getip import getIp
 from logs.loggerDefine import loggerDefine
 from tools.youtubetool.youtubeMMS import readMongo as mmsreadMongo
+from tools.youtubetool.backcountry import readMongo as backCountry
 from multiprocessing.pool import ThreadPool
 import threading
 
@@ -795,6 +796,10 @@ if __name__ == '__main__':
     # 验证 mms 和cmms
     mmsreadMongoth = threading.Thread(target=mmsreadMongo, args=())
     mmsreadMongoth.start()
+
+    # 回补国家
+    backcountryth = threading.Thread(target=backCountry, args=(collection,))
+    backcountryth.start()
 
     # runThreadEnglish("立陶宛", "孙海龙")
     languageList = keyWordCollection.distinct("language", {"getData": False, "platId": 1})

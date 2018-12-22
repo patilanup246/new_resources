@@ -26,10 +26,16 @@ loggerFile = webspiderDir + "googlesearch.log"
 logging = loggerDefine(loggerFile)
 holeurl = []
 bullshit = {
-    # "Connection": "keep-alive",
-    # "Upgrade-Insecure-Requests": "1",
-    # "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-    # "Accept-Encoding": "gzip, deflate",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "AlexaToolbar-ALX_NS_PH": "AlexaToolbar/alx-4.0.3",
+    "Cache-Control": "max-age=0",
+    "Connection": "keep-alive",
+    "Cookie": "_ga=GA1.2.1213406101.1543890929",
+    "Host": "api.serpprovider.com",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36",
 }
 
 words = {
@@ -83,18 +89,16 @@ words = {
 }
 
 db = connectMongo(True)
-googleUrlCollection = db["googleUrl"]
-webResourcescollection = db["webResources"]
+googleUrlCollection = db["telegramUrl"]
 keyWordsCollection = db["keyWords"]
 
-domainListGB = []
-domainListCL = []
+urlList = []
 
 
 def sendRequest(url):
     for i in range(3):
         try:
-            response = requests.get(url=url, timeout=35, headers=bullshit)
+            response = requests.get(url=url, timeout=100, headers=bullshit)
             response.encoding = "utf-8"
             if response.status_code == 200:
                 return response.text
@@ -109,13 +113,21 @@ def getcms(keyword):
     resPeople = result["resPeople"]
     part = result["part"]
     station = result["station"]
+    # 改变关键词获取状态
+    # if " " in keyword:
+    #     updateStatusKeyWord(keyword, part)
+    #     return
 
     word = words.get(language)
     if not word:
+        updateStatusKeyWord(keyword, part)
+        logging.error("没有匹配的语言:{}".format(language))
         return
 
-    url = "http://api.serpprovider.com/5bfdf4cd7d33d1d77b9875d1/google/en-us/{}/{}".format(word, keyword)
-    logging.info("请求数据,关键字:{},url:{}".format(keyword, url))
+    keywordnew = "inurl:telegram.me " + keyword
+    keywordnew = keywordnew.replace(" ", "%20")
+    url = "http://api.serpprovider.com/5bfdf4cd7d33d1d77b9875d1/google/en-us/{}/{}".format(word, keywordnew)
+    logging.info("请求数据,关键字:{},url:{}".format(keywordnew, url))
     html = sendRequest(url)  # 请求
     try:
         datas = json.loads(html)
@@ -126,11 +138,14 @@ def getcms(keyword):
         reslist = reslist[0]
     else:
         logging.error("google搜索后没有数据:{}".format(url))
+        updateStatusKeyWord(keyword, part)
         return
     if not reslist:
+        updateStatusKeyWord(keyword, part)
         logging.error("google搜索后没有数据:{}".format(url))
         return
     for data in reslist:
+        url = data["url"]
         # 协议
         scheme = urlparse(data['url']).scheme
         # 域名
@@ -138,65 +153,55 @@ def getcms(keyword):
         if not scheme or not domain:
             continue
         link = scheme + '://' + domain  # 拼接链接
-        # 判断是否在缓存中
-        if part == "GB":
-            domainList = domainListGB
-        else:
-            domainList = domainListCL
-        if domain in domainList:
-            logging.warn("该域名已经获取,存在缓存中,domain:{}".format(domain))
+
+        if domain != "telegram.me":
+            logging.error("域名不为telegram.me     :{}".format(domain))
+            continue
+
+        # 此时域名已经是telegram.me
+        if url.split("telegram.me")[-1] == "/":
+            logging.error("url为{}".format(url))
+            continue
+
+        if url.endswith("telegram.me"):
+            logging.error("url为{}".format(url))
+            continue
+        url = link + url.split("telegram.me")[-1]
+        if url.endswith("/"):
+            url = url[:-1]
+        if url in urlList:
+            logging.warn("该地址已经获取,存在缓存中,url:{}".format(url))
             continue
 
         # 判断是否在数据库中
-        result = googleUrlCollection.find_one({"domain": domain})
+        result = googleUrlCollection.find_one({"url": url, "part": part})
         if result:
-            logging.warn("该域名已经获取,存在数据库中中,domain:{}".format(domain))
-            if result["part"] != part:
-                webresultList = list(webResourcescollection.find({"url": link}))
-                for result in webresultList:
-                    if part == "clothes":
-                        result["_id"] = result["_id"].replace("_GB_", "_clothes_")
-                    else:
-                        result["_id"] = result["_id"].replace("_clothes_", "_GB_")
-                    try:
-                        result["resPeople"] = resPeople
-                        result["part"] = part
-                        result["station"] = station
-                        mongoResult = webResourcescollection.find_one({"_id": result["_id"]})
-                        if not mongoResult:
-                            webResourcescollection.insert(result)
-                            logging.info("加入成功:{},_id:{}".format(part, result["_id"]))
-                    except Exception as e:
-                        logging.error(e)
-
+            logging.warn("该url已经获取,存在数据库中中,url:{}".format(url))
             continue
-
-        # 查询是否在GB中
 
         title = data['title']  # 获取标题
         describition = data['desc']  # 获取描述
-        domainList.append(domain)
+        urlList.append(url)
         sourceUrl = data["url"]
-        insertItem(domain, link, sourceUrl, scheme, keyword, language, resPeople, title, describition, word, part,
+        insertItem(domain, url, sourceUrl, scheme, keyword, language, resPeople, title, describition, word, part,
                    station)
-
-    # 改变关键词获取状态
     updateStatusKeyWord(keyword, part)
 
 
 def updateStatusKeyWord(keyword, part):
     try:
-        keyWordsCollection.update({"originKey": keyword, "part": part}, {"$set": {"isGet": True}}, multi=True)
+        keyWordsCollection.update({"originKey": keyword, "part": part}, {"$set": {"istelegram": True}}, multi=True)
         logging.info("关键字状态更改为已经获取:{}".format(keyword))
     except Exception as e:
         logging.error(e)
 
 
 def insertItem(domain, url, sourceUrl, scheme, keyword, language, resPeople, title, describition, word, part, station):
+    _id = part + "_" + url
     item = {
-        "_id": domain,
+        "_id": _id,
         "url": url,
-        "sourceUrl": sourceUrl,
+        "sourceUrl": "",
         "domain": domain,
         "scheme": scheme,
         "keyWord": keyword,
@@ -220,7 +225,8 @@ def insertItem(domain, url, sourceUrl, scheme, keyword, language, resPeople, tit
 def mainRunGet():
     # 循环获取关键字
     while True:
-        resultList = keyWordsCollection.distinct("originKey", {"$or": [{"platId": 1}, {"platId": 3}], "isGet": False})
+        resultList = keyWordsCollection.distinct("originKey",
+                                                 {"$or": [{"platId": 1}, {"platId": 3}], "istelegram": False})
         for result in resultList:
             keyWord = result
             getcms(keyWord)

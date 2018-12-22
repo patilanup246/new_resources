@@ -168,7 +168,7 @@ def keyWordDeal(keyWordList, driver, userName):
 
                 logging.info("解析小组页面详细url,关键字:{}".format(word))
                 titleNode = selector.xpath('//div[@class="_gll"]/div//a/@href')
-                if titleNode:
+                if not titleNode:
                     logging.info("确实没有搜索到任何东西,关键字:{}".format(keyWordNew))
                     keyCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part},
                                              {"$set": {"getData": True}})
@@ -250,6 +250,7 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                         pass
                     else:
                         groupNum = int(re.search(r"(.*?)位成员", groupNumStr).group(1).replace(",", "").strip())
+
                         # if language == "英语":
                         #     if groupNum < 1000:
                         #         logging.error("{},成员少于1000人".format(language))
@@ -651,12 +652,13 @@ if __name__ == '__main__':
                         # "wuzeronger@live.com": "wuzeronger123",  # 需要验证身份
                         "958905350@qq.com": "withyou1314",  # 已经被禁止搜索具体群组
                         "2933219312@qq.com": "Citic231104",  # 操作太快没有搜索权限
-                        # # "tanya.beleutova.beleutova@mail.ru": "yoan6SNoer",  # 需要验证手机号码
+                        # "tanya.beleutova.beleutova@mail.ru": "yoan6SNoer",  # 需要验证手机号码
                         "huguangjing211@gmail.com": "hgj212816",
                         # "brveo2166@inbox.ru": "B3Lt5zjlWk",
                         # "DyachkovaEvridika89@inbox.ru": "OCRsw5VMth",
                         # "EginaGuschina89.89@inbox.ru": "HfwxQpbMQP",
-                        "jordan.macduff.1982@list.ru": "ltcw4356"
+                        "jordan.macduff.1982@list.ru": "ltcw4356",
+                        "13311631790": "ximalaya1"
                     }
                 userName = random.choice(list(userPsdItem.keys()))
                 psd = userPsdItem[userName]
