@@ -211,15 +211,23 @@ def take_thread():
         threadNum = 10
         resultList = list(
             userCollection.find({"isMail": True, "csvLoad": False, "emailAddress": "", "isRecaptcha": False,
+<<<<<<< HEAD
                                  "VideoTitleCount": {"$gte": 4}, "viewCountAvg": {"$gte": 3000},
                                  "subscriberCount": {"$gte": 5000}}).limit(10))
+=======
+                                 "VideoTitleCount": {"$gte": 4}}).limit(10))
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
         if not resultList:
             logging.error("没有需要获取邮箱的数据")
             time.sleep(60)
             continue
         channel_url_list = []
         for result in resultList:
+<<<<<<< HEAD
             channel_url_list.append([result["url"], result["part"]])
+=======
+            channel_url_list.append(result["url"])
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
         pool = ThreadPool(threadNum)
         pool.map_async(main_process, channel_url_list)
         pool.close()
@@ -256,7 +264,11 @@ def main_process(argsList):
             logging.info("邮箱获取成功,url:{},addr:{}".format(channel_url, mail_addr))
             break
         else:
+<<<<<<< HEAD
             logging.error("邮箱获取失败{}次,url:{}".format(i + 1, channel_url))
+=======
+            logging.error("邮箱获取失败{}次,url:{}".format(i+1,channel_url))
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
             continue
     try:
         mailExists = False

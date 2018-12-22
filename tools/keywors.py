@@ -38,6 +38,7 @@ AD_GROUP_ID = ''
 db = connectMongo(True)
 collection = db["keyWords"]
 
+<<<<<<< HEAD
 langueDict = {"阿拉伯": "1019",
               "孟加拉": "1056",
               "保加利亚": "1020",
@@ -84,6 +85,23 @@ langueDict = {"阿拉伯": "1019",
               "乌克兰": "1036",
               "乌尔都": "1041",
               "越南": "1040"}
+=======
+langueDict = {
+    "波兰":"1030",
+    "葡萄牙":"1014",
+    "西班牙":"1003",
+    "英语":"1000",
+    "德国":"1001",
+    "意大利":"1004",
+    "土耳其":"1037",
+    "法国":"1002",
+    "匈牙利":"1024",
+    "斯洛文尼亚":"1034",
+    "保加利亚":"1020",
+    "俄罗斯":"1031"
+
+}
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
 holewd = []
 
 
@@ -165,9 +183,26 @@ def main(part, station, client, keyword, ad_group_id=None):
             print('No related keywords were found.')
         try:
             for result in data:
+<<<<<<< HEAD
                 platId = 1
                 item = {
                     "_id": str(platId) + "_" + part + "_" + station + "_" + result[0],
+=======
+                # item = {
+                #     "_id": result[0],
+                #     "originKey": keyword[0],
+                #     "language": result[3],
+                #     "resPeople": y[4],
+                #     "isGet": False,
+                #     "category": result[2],
+                #     "keyWord": result[0],
+                #     "hots": result[1],
+                #     "getData": False,
+                # }
+                platId = 1
+                item = {
+                    "_id": str(platId) + "_GB_" + result[0],
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
                     "originKey": keyword[0],
                     "language": keyword[2],
                     "resPeople": keyword[4],
@@ -177,10 +212,14 @@ def main(part, station, client, keyword, ad_group_id=None):
                     "hots": result[1],
                     "getData": False,
                     "platId": platId,
+<<<<<<< HEAD
                     "part": part,
                     "date": keyword[-2],
                     "station": station,
                     "insertTime": int(time.time())
+=======
+                    "part": "GB"
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
                 }
                 try:
                     collection.insert(item)
@@ -201,6 +240,7 @@ if __name__ == '__main__':
         csv_reader = csv.reader(csvfile)  # 使用csv.reader读取csvfile中的文件
         birth_header = next(csv_reader)  # 读取第一行每一列的标题
         for row in csv_reader:  # 将csv 文件中的数据保存到birth_data中
+<<<<<<< HEAD
             dataList.append(row)
         adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
         num = 1
@@ -227,6 +267,12 @@ if __name__ == '__main__':
                 platId = 2
                 item = {
                     "_id": str(platId) + "_" + part + "_" + station + "_" + row[0],
+=======
+            if "Facebook" in row[3]:
+                platId = 2
+                item = {
+                    "_id": str(platId) + "_GB_" + row[0],
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
                     "originKey": row[0],
                     "language": row[2],
                     "resPeople": row[4],
@@ -236,14 +282,19 @@ if __name__ == '__main__':
                     "hots": 0,
                     "getData": False,
                     "platId": platId,
+<<<<<<< HEAD
                     "part": part,
                     "date": row[-2],
                     "station": station,
                     "insertTime": int(time.time())
+=======
+                    "part": "GB"
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
                 }
                 try:
                     collection.insert(item)
                     print(item)
+<<<<<<< HEAD
                     num += 1
                 except Exception as e:
                     pass
@@ -305,3 +356,16 @@ if __name__ == '__main__':
                 #     dataList.append(row)
                 #     continue
         print(num)
+=======
+                except Exception as e:
+                    pass
+            elif "Youtube" in row[3]:
+                print(row)
+                adwords_client = adwords.AdWordsClient.LoadFromStorage()  # 启动线程
+                try:
+                    main(adwords_client, row, int(AD_GROUP_ID) if AD_GROUP_ID.isdigit() else None)  # 开始联想
+                except:
+                    print(traceback.format_exc())
+                    print('no')
+                    continue
+>>>>>>> 00b8661052c6b093b516ce99809036f3f4163d85
