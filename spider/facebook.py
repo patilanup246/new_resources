@@ -31,11 +31,14 @@ db = connectMongo(True)
 keyCollection = db["keyWords"]
 fbresourcesCollection = db["fbresources"]
 blackwhitecoll = db["blackWhite"]
-blackUrlcoll = db["blackUrl"]
-invisibleUrlcoll = db["invisibleUrl"]
+# blackUrlcoll = db["blackUrl"]
+# invisibleUrlcoll = db["invisibleUrl"]
 
 blackList = blackwhitecoll.distinct("word", {"isBlack": True, "platId": platId, "part": 'GB'})
 clothesblackList = blackwhitecoll.distinct("word", {"isBlack": True, "platId": platId, "part": 'clothes'})
+
+whiteList = blackwhitecoll.distinct("word", {"isWhite": True, "platId": platId, "part": 'GB'})
+clotheswhiteList = blackwhitecoll.distinct("word", {"isWhite": True, "platId": platId, "part": 'clothes'})
 
 errNode = 0
 keyWordList = []
@@ -126,9 +129,10 @@ def keyWordDeal(keyWordList, driver, userName):
         startTime = int(time.time())
         for result in keyWordList:
             endTime = int(time.time())
-            # if endTime - startTime >= 10 * 3600:
-            #     del userPsdItem[userName]
-            #     driver.quit()
+            # 控制账户访问频率：
+            if endTime - startTime >= 2 * 3600:
+                del userPsdItem[userName]
+                driver.quit()
             keyWord = result["keyWord"]
 
             resPeople = result["resPeople"]
@@ -168,13 +172,18 @@ def keyWordDeal(keyWordList, driver, userName):
 
                 logging.info("解析小组页面详细url,关键字:{}".format(word))
                 titleNode = selector.xpath('//div[@class="_gll"]/div//a/@href')
+                # if titleNode:
+                #     logging.info("搜索到东西了关键字,关键字:{}".format(keyWordNew))
                 if not titleNode:
                     logging.info("确实没有搜索到任何东西,关键字:{}".format(keyWordNew))
                     keyCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part},
                                              {"$set": {"getData": True}})
                 else:
                     # 再确认一次 搜索小米
-                    word = "huawei"
+                    logging.info("没有搜索到相关信息,关键字:{}".format(keyWordNew))
+                    driver.close()
+                    driver.switch_to_window(driver.window_handles[0])
+                    word = "xiaomi"
                     url = "https://www.facebook.com/search/str/{}/keywords_groups".format(word)
                     js = 'window.open("{}");'.format(url)
                     driver.execute_script(js)
@@ -187,7 +196,7 @@ def keyWordDeal(keyWordList, driver, userName):
                     logging.info("解析小组页面详细url,关键字:{}".format(word))
                     titleNode = selector.xpath('//div[@class="_gll"]/div//a/@href')
                     if titleNode:
-                        logging.info("确实没有搜索到任何东西,关键字:{}".format(keyWordNew))
+                        logging.info("搜索到东西了关键字:{}".format(keyWordNew))
                         keyCollection.update_one({"keyWord": keyWord, "platId": platId, "part": part},
                                                  {"$set": {"getData": True}})
                     else:
@@ -275,6 +284,7 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                 descriptionList = descrNode.xpath('./div/div/div/text()')
                 if not descriptionList:
                     # 没有评论信息
+                    logging.error("没有描述信息,url:{}".format(link))
                     description = ""
                 elif len(descriptionList) == 1:
                     # 代表只有描述信息
@@ -417,18 +427,37 @@ def checkText(response, url):
 
 def black(desc, part):
     blackWord = ""
+    blackNum = 0
     if part == "GB":
         blackListall = blackList
     else:
         blackListall = clothesblackList
     try:
-        isExists = False
         for word in blackListall:
             if word in desc:
                 blackWord += word + " "
+                blackNum += 1
                 logging.error("存在黑名单中,word:{}".format(word))
-                isExists = True
-        return isExists, blackWord.strip()
+        return blackWord.strip(),blackNum
+    except Exception as e:
+        logging.error(traceback.format_exc())
+
+
+# 白名单处理：
+def white(desc, part):
+    whiteWord = ""
+    whiteNum = 0
+    if part == "GB":
+        whiteListall = whiteList
+    else:
+        whiteListall = clotheswhiteList
+    try:
+        for word in whiteListall:
+            if word in desc:
+                whiteWord += word + " "
+                whiteNum += 1
+                logging.error("存在白名单中,word:{}".format(word))
+        return whiteWord.strip(),whiteNum
     except Exception as e:
         logging.error(traceback.format_exc())
 
@@ -540,45 +569,12 @@ def parsePage(response, url, resPeople, keyWord, language, part):
         if not manager:
             manager = ''
         logging.info("manager:{},    url:{}".format(manager, url))
-        blackWord = ""
-        blackNum = 0
         if description:
-            isExists, blackWord = black(description, part)
-            # if isExists:
-            #     # 存在即存入数据数中
-            #     logging.error("存在非中文黑名单中,url:{}".format(url))
-            #     try:
-            #         blackUrlcoll.insert({
-            #             "_id": str(platId) + "_" + part + "_" + url,
-            #             "url": url,
-            #             "platId": platId,
-            #             "blackWord": blackWord,
-            #             "part": part,
-            #             "insertTime": int(time.time())
-            #         })
-            #     except Exception as e:
-            #         logging.error(e)
-            #     return
             # 翻译
             description = mainTranslate(description)
-            isExists, blackWord = black(description, part)
-            # if isExists:
-            #     # 存在即存入数据数中
-            #     logging.error("存在中文黑名单中,url:{}".format(url))
-            #     try:
-            #         blackUrlcoll.insert({
-            #             "_id": str(platId) + "_" + part + "_" + url,
-            #             "url": url,
-            #             "platId": platId,
-            #             "blackWord": blackWord,
-            #             "part": part,
-            #             "insertTime": int(time.time())
-            #         })
-            #     except Exception as e:
-            #         logging.error(e)
-            #     return
-        if blackWord:
-            blackNum = len(blackWord.split(" "))
+        blackWord,blackNum = black(description + descriptionUn, part)
+        whiteWord,whiteNum = white(description + descriptionUn, part)
+
         fbresourcesCollection.insert_one({
             "_id": str(platId) + "_" + part + "_" + url,
             "description": description,
@@ -597,7 +593,9 @@ def parsePage(response, url, resPeople, keyWord, language, part):
             "language": language,
             "lastUpdate": int(time.time()),
             "blackWord": blackWord,
-            "blackNum": blackNum
+            "blackNum": blackNum,
+            "whiteWord":whiteWord,
+            "whiteNum":whiteNum
         })
     except Exception as e:
         logging.error(traceback.format_exc())
