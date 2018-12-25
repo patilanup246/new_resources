@@ -801,8 +801,8 @@ if __name__ == '__main__':
     backcountryth = threading.Thread(target=backCountry, args=(collection,))
     backcountryth.start()
 
-    # runThreadEnglish("立陶宛", "孙海龙")
-    languageList = keyWordCollection.distinct("language", {"getData": False, "platId": 1})
-    for language in languageList:
-        pro = multiprocessing.Process(target=runThreadEnglish, args=(language,))
-        pro.start()
+    # # runThreadEnglish("立陶宛", "孙海龙")
+    # languageList = keyWordCollection.distinct("language", {"getData": False, "platId": 1})
+    # for language in languageList:
+    #     pro = multiprocessing.Process(target=runThreadEnglish, args=(language,))
+    #     pro.start()

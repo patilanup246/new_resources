@@ -2,6 +2,7 @@
 <project version="4">
   <component name="Encoding">
     <file url="file://$PROJECT_DIR$/spider/linbing.csv" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tools/blackwhite.csv" charset="GBK" />
     <file url="file://$PROJECT_DIR$/tools/keyword.csv" charset="UTF-8" />
   </component>
 </project>

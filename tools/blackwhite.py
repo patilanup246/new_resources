@@ -48,7 +48,7 @@ if __name__ == '__main__':
                 platId = 3
             elif row[5].strip() == "youtube":
                 platId = 1
-            elif row[5].strip() == "facebook":
+            elif row[5].strip() == "FB":
                 platId = 2
             else:
                 continue

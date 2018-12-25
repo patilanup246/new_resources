@@ -690,13 +690,6 @@ def getMongoUrl():
             logging.error("数据库中没有需求url,时间:{}".format(int(time.time())))
             time.sleep(60)
             continue
-        # resultList = []
-        # file = ""
-        # csv_reader = csv.reader(open(file, errors="ignore"))
-        # for row in csv_reader:
-        #     result["url"] = row[0]
-        #     result["language"] = row[1]
-        #     resultList.append(result)
         for result in resultList:
             mainRun(result)
 
@@ -723,7 +716,6 @@ def mainRBackWhatRun():
                 continue
         urls = []
         for result in urlList:
-            time.sleep(30)
             mongoUrl = result["url"]
             if mongoUrl in urls:
                 continue
@@ -872,8 +864,7 @@ class GetLinMail(threading.Thread):
                  "isGetLink": False,
                  "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
                          {"iscmms": False, "part": "clothes"}], "fhBlackWordCount": 0, "blackNum": 0,
-                 "viewCount": {"$gte": 10000},
-                 "whatRun": {"$exists": 1}, "csvLoad": False}).limit(100))
+                 "viewCount": {"$gte": 10000}, "csvLoad": False}).limit(100))
 
             if not resultList:
                 logging.error("目前没有数据需要获取邮箱")
@@ -1050,8 +1041,8 @@ if __name__ == '__main__':
     countryth.start()
 
     # 验证邮箱
-    # verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-    # verifyMailth.start()
+    verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+    verifyMailth.start()
 
     # 回补mainRBackWhatRun信息
     WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
@@ -1074,10 +1065,10 @@ if __name__ == '__main__':
     backHeaderFooterOBJ.start()
 
     while True:
-        # if not verifyMailth.is_alive():
-        #     # 验证邮箱
-        #     verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-        #     verifyMailth.start()
+        if not verifyMailth.is_alive():
+            # 验证邮箱
+            verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+            verifyMailth.start()
 
         if not WhatRunth.is_alive():
             # 回补mainRBackWhatRun信息

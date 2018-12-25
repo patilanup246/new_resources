@@ -142,8 +142,16 @@ class YouTuBe(object):
                 "viewCountFirst": viewCountFirst
             }
         except Exception as e:
-            logging.error(e)
-            item = {}
+            item = {
+                "videoTittle": "",
+                "videotitleUn": "",
+                "viewCountAvg": 0,
+                "titleLastUpdateTime": "",
+                "whiteWord": "",
+                "VideoTitleCount": 0,
+                "titleFirst": "",
+                "viewCountFirst": ""
+            }
         return item
 
     def parsePageUser(self, response, url, part, name):

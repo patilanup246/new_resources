@@ -6,9 +6,6 @@ import csv
 import os
 import traceback
 import os
-
-print(os.getcwd())
-
 from datetime import datetime
 
 from db.mongodb import connectMongo
@@ -29,7 +26,9 @@ cmsListErro = [
     "craft cms",
     "qubit opentag",
     "3dcart",
-    "vtex enterprise"
+    "vtex enterprise",
+    "prestashop",
+    "demandware",
 ]
 
 
@@ -38,7 +37,6 @@ def write(file, fieldList, collection, query):
         with open(file, "w", newline='', encoding="utf_8_sig") as csvfileWriter:
             writer = csv.writer(csvfileWriter)
             writer.writerow(fieldList)
-
             # urlList = collection.distinct("url", query)
             allRecordRes = mongoQuery(collection, query)
             print("总共数据量:{}".format(len(allRecordRes)))
@@ -99,20 +97,6 @@ def writeweb(file, fieldList, collection, query):
             # 写入多行数据
             urlList = []
             for record in allRecordRes:
-                url = record["url"]
-
-                isRight = record.get("isRight")
-                if isRight == None:
-                    # 代表还没有验证邮箱状态
-                    pass
-                else:
-                    if not isRight:
-                        # 代表邮箱不可用  只导出一条数据
-                        pass
-                    else:
-                        # 代表邮箱可用
-                        pass
-
                 whatRun = record.get("whatRun")
                 if whatRun:
                     for word in cmsListErro:
@@ -128,14 +112,12 @@ def writeweb(file, fieldList, collection, query):
                     try:
                         print(recordValueLst)
                         writer.writerow(recordValueLst)
-                        if url not in urlList:
-                            urlList.append(url)
                     except Exception as e:
                         print(e)
-                    try:
-                        collection.update_one({"_id": record["_id"]}, {"$set": {"csvLoad": True}})
-                    except Exception as e:
-                        pass
+                        # try:
+                        #     collection.update_one({"_id": record["_id"]}, {"$set": {"csvLoad": True}})
+                        # except Exception as e:
+                        #     pass
                 except Exception as e:
                     print(traceback.format_exc())
     except Exception as e:
@@ -171,7 +153,7 @@ def web():
     if not os.path.exists(filepath):
         os.makedirs(filepath)
     collection = db["webResources"]
-    countryList = collection.distinct("country", {"ismms": False})
+    countryList = collection.distinct("country", {"ismms": False, "part": "GB"})
 
     for country in countryList:
         # file = filepath +
@@ -200,8 +182,8 @@ def web():
                      "blackNum",
                      "fhBlackWordCount"
                      ]
-        query = {"country": country, "whiteNum": {"$gte": 3}, "fhBlackWordCount": {"$lte": 1}, "blackNum": {"$lte": 1},
-                 "ismms": False, "header": {"$ne": ""}, "footer": {"$ne": ""}, "csvLoad": False}
+        query = {"country": country, "whiteNum": {"$gte": 3}, "fhBlackWordCount": 0, "blackNum": 0,
+                 "ismms": False, "header": {"$ne": ""}, "footer": {"$ne": ""}, "part": "GB"}
         if not country:
             country = "all"
         # 查询
@@ -226,6 +208,16 @@ def writeCSV(file, fieldList, collection, query):
             # 写入多行数据
             urlList = []
             for record in allRecordRes:
+                whatRun = record.get("whatRun")
+                if whatRun:
+                    for word in cmsListErro:
+                        if str(whatRun).lower().find(word.lower()) >= 0:
+                            continue
+
+                blackNum = record.get("blackNum")
+                if blackNum:
+                    if blackNum != 0:
+                        continue
                 recordValueLst = []
                 try:
                     for field in list(fieldList):
@@ -249,27 +241,12 @@ def writeCSV(file, fieldList, collection, query):
 
 
 if __name__ == '__main__':
-    file = "./web菲律宾.csv"
-    fieldList = ["url",
-                 "whiteStr",
-                 "titleChinese",
-                 "emailStr",
-                 "facebook",
-                 "instagram",
-                 "youtube",
-                 "twitter",
-                 "viewCount",
-                 "country",
-                 "percent",
-                 "status",
-                 "firstName",
-                 "lastName",
-                 "position",
-                 "isRight",
-                 "blackNum",
-                 "fhBlackWordCount"
-                 ]
-    collection = db["webResources"]
-    query = {"country": "菲律宾", "csvLoad": False, "whiteNum": {"$gte": 1}, "ismms": False, "part": 'GB',
-             "fhBlackWordCount": 0, "blackNum": 0}
+    # web()
+    file = "./youtube菲律宾.csv"
+    fieldList = ["upTitle", "keyWord", "country", "isMail", "emailAddress", "Facebook", "description", "url",
+                 "name", "VideoTitleCount",
+                 "subscriberCount", "viewCountAvg", "titleLastUpdateTime", "viewCountFirst", "whiteWord"]
+    collection = db["resources"]
+    query = {"country": "菲律宾", "csvLoad": False, "VideoTitleCount": {"$gte": 2}, "part": "GB", "ismms": False,
+             "blackWordCount": 0}
     writeCSV(file, fieldList, collection, query)

@@ -40,6 +40,7 @@ import time
 from fake_useragent import UserAgent
 import logging
 from multiprocessing.pool import ThreadPool
+import threading
 
 mongoDB = connectMongo(True)
 youtubeUrl = mongoDB["youtubeUrl"]
@@ -93,7 +94,10 @@ def dealResult(result):
     station = result.get("station")
     if not station:
         station = ""
-    sendRequestUser(url, keyWord, name, part, station, language)
+    # sendRequestUser(url, keyWord, name, part, station, language)
+    th = threading.Thread(target=sendRequestUser, args=(url, keyWord, name, part, station, language))
+    th.start()
+    time.sleep(2)
 
 
 def sendRequestUser(url, keyWord, name, part, station, language):

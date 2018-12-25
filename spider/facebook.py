@@ -82,7 +82,7 @@ def loginFB(driver, url, userName, psd, name):
                     del userPsdItem[userName]
                     driver.quit()
                     return
-                time.sleep(random.randint(3, 5))
+                time.sleep(random.randint(2, 3))
             else:
                 break
         # time.sleep(1)
@@ -100,10 +100,10 @@ def loginFB(driver, url, userName, psd, name):
                 if nodeResult[0] != "中文(简体)":
                     logging.error("非中文页面")
                     driver.find_element_by_xpath('//a[@lang="zh_CN"]').click()
-                    time.sleep(random.randint(3, 5))
+                    time.sleep(random.randint(2, 3))
                     """//div[@class="_4t2a"]//button"""
                     driver.find_element_by_xpath('//div[@class="_4t2a"]//button').click()
-                    time.sleep(random.randint(3, 5))
+                    time.sleep(random.randint(2, 3))
         # keyWordList = list(collection.distinct("keyWord", {"getData": False}))[:1000]
         keyWordList = mongoQuery(keyCollection, {"getData": False, "platId": platId})
         if not keyWordList:
@@ -130,7 +130,7 @@ def keyWordDeal(keyWordList, driver, userName):
         for result in keyWordList:
             endTime = int(time.time())
             # 控制账户访问频率：
-            if endTime - startTime >= 2 * 3600:
+            if endTime - startTime >= random.randint(3600, 7200):
                 del userPsdItem[userName]
                 driver.quit()
             keyWord = result["keyWord"]
@@ -142,7 +142,7 @@ def keyWordDeal(keyWordList, driver, userName):
             url = "https://www.facebook.com/search/str/{}/keywords_groups".format(keyWordNew)
             js = 'window.open("{}");'.format(url)
             driver.execute_script(js)
-            time.sleep(random.randint(3, 5))
+            time.sleep(random.randint(2, 3))
             driver.switch_to_window(driver.window_handles[1])
             logging.info("新开窗口,切换到小组窗口界面,url:{}".format(driver.current_url))
 
@@ -163,7 +163,7 @@ def keyWordDeal(keyWordList, driver, userName):
                 url = "https://www.facebook.com/search/str/{}/keywords_groups".format(word)
                 js = 'window.open("{}");'.format(url)
                 driver.execute_script(js)
-                time.sleep(random.randint(3, 5))
+                time.sleep(random.randint(2, 3))
                 driver.switch_to_window(driver.window_handles[1])
                 logging.info("新开窗口,切换到小组窗口界面,url:{}".format(driver.current_url))
 
@@ -187,7 +187,7 @@ def keyWordDeal(keyWordList, driver, userName):
                     url = "https://www.facebook.com/search/str/{}/keywords_groups".format(word)
                     js = 'window.open("{}");'.format(url)
                     driver.execute_script(js)
-                    time.sleep(random.randint(3, 5))
+                    time.sleep(random.randint(2, 3))
                     driver.switch_to_window(driver.window_handles[1])
                     logging.info("新开窗口,切换到小组窗口界面,url:{}".format(driver.current_url))
                     responseBody = driver.page_source
@@ -240,7 +240,7 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                 if scroll >= 20:
                     break
                 driver.execute_script(js)
-                time.sleep(random.randint(3, 5))
+                time.sleep(random.randint(2, 3))
         responseBody = driver.page_source
         selector = etree.HTML(responseBody)
 
@@ -357,10 +357,10 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                 logging.error("没有查到相关数据,keyWord:{}".format(keyWord))
             driver.close()
             driver.switch_to_window(driver.window_handles[0])
-            time.sleep(random.randint(3, 5))
+            time.sleep(random.randint(2, 3))
             return
         else:
-            time.sleep(random.randint(3, 5))
+            time.sleep(random.randint(2, 3))
 
         while True:
             fiveList = linkList[:3]
@@ -373,7 +373,7 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                 js = 'window.open("{}");'.format(url)
                 linkList.remove(url)
                 driver.execute_script(js)
-                time.sleep(random.randint(3, 5))
+                time.sleep(random.randint(2, 3))
 
             handles = driver.window_handles
             driver.switch_to_window(handles[0])
@@ -381,7 +381,7 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
             for handle in handles:
                 if handle != currentHandle:
                     try:
-                        time.sleep(random.randint(3, 5))
+                        time.sleep(random.randint(2, 3))
                         driver.switch_to_window(handle)
                         if "操作过快" in driver.page_source:
                             logging.warn('操作过快,导致没有搜索详情权限,用户名:{}'.format(userName))
@@ -395,7 +395,7 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                         if url:
                             text = checkText(driver.page_source.encode("utf-8", "ignore"), url)
                             if not text:
-                                time.sleep(random.randint(3, 5))
+                                time.sleep(random.randint(2, 3))
                             parsePage(driver.page_source, url, resPeople, keyWord, language, part)
                         driver.close()
                         driver.switch_to_window(handles[0])
@@ -574,7 +574,6 @@ def parsePage(response, url, resPeople, keyWord, language, part):
             description = mainTranslate(description)
         blackWord,blackNum = black(description + descriptionUn, part)
         whiteWord,whiteNum = white(description + descriptionUn, part)
-
         fbresourcesCollection.insert_one({
             "_id": str(platId) + "_" + part + "_" + url,
             "description": description,
@@ -610,7 +609,6 @@ def mainR(url, userName, psd, name):
         # 正式环境
         options = getOption(True)
         driver = webdriver.Chrome(executable_path="./chromedriver", chrome_options=options)
-
     loginFB(driver, url, userName, psd, name)
 
 
@@ -637,7 +635,7 @@ if __name__ == '__main__':
             names.append(name)
     # 启动所有线程
     while True:
-        time.sleep(60)
+        time.sleep(10)
         for th, url, name in zip(threads, urls, names):
             if not th.is_alive():
                 logging.warn("线程停止{}".format(th.name))
