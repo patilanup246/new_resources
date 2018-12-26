@@ -6,7 +6,7 @@ from db.mongodb import connectMongo
 import time
 import logging
 import traceback
-
+from langdetect import detect
 countrys = {
     'af': '南非',
     'sq': '阿尔巴尼亚',
@@ -113,43 +113,45 @@ countrys = {
     'yo': '约鲁巴',
     'zu': '祖鲁',
 }
-transd = Translator()
+# transd = Translator()
 
 
 def checkcountry(describtion, upname, url):
     country = ""
     if describtion:
         try:
-            rez = transd.detect(describtion).lang
+            rez = detect(describtion)
         except Exception as e:
             rez = "error"
         country = countrys.get(rez)
         if not country:
             try:
-                rez = transd.detect(upname).lang
+                rez = detect(upname)
             except Exception as e:
                 rez = "error"
             country = countrys.get(rez)
     else:
         try:
-            rez = transd.detect(upname).lang
+            rez = detect(upname)
         except Exception as e:
             rez = "error"
         country = countrys.get(rez)
-    print("国家:{}".format(country))
     if not country:
         logging.error("依旧没有获取到国家信息{}".format(url))
         # 一个一个搜索
         descUpStr = describtion + " " + upname
         for word in descUpStr.split(" "):
+            time.sleep(1)
             try:
-                rez = transd.detect(word).lang
+                rez = detect(word)
             except Exception as e:
                 rez = "error"
             country = countrys.get(rez)
             if country:
                 logging.info("终于获取国家信息成功:{}".format(url))
                 return country
+            else:
+                logging.error("依旧回补失败:{}".format(url))
     else:
         return country
 
@@ -173,10 +175,14 @@ def readMongo(collection):
             time.sleep(100)
             continue
         for result in resultList:
-            time.sleep(1)
+            time.sleep(2)
             url = result["url"]
-            desc = result["descriptionUn"]
-            uptitle = result["upTitle"]
+            desc = result.get("descriptionUn")
+            if not desc:
+                desc = result.get("descInfo")
+            uptitle = result.get("upTitle")
+            if not uptitle:
+                uptitle = result.get("pageTitle")
             country = sendReq(desc, uptitle, url)
             if not country:
                 logging.error("没有正确返回国家信息:{}".format(url))
@@ -195,5 +201,5 @@ def updateCountry(collection, country, url):
 
 if __name__ == '__main__':
     db = connectMongo(True)
-    collection = db["resources"]
+    collection = db["telegramResource"]
     readMongo(collection)

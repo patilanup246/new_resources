@@ -3,17 +3,11 @@ import os
 
 sys.path.append("./../")
 from db.mongodb import connectMongo
-from logs.loggerDefine import loggerDefine
 import requests
 from lxml import etree
 from tools.translate.translate_google import mainTranslate
 import time
-
-loggerPath = "./../logs/telegram/"
-if not os.path.exists(loggerPath):
-    os.makedirs(loggerPath)
-loggerFile = loggerPath + "telegram.log"
-logging = loggerDefine(loggerFile)
+import logging
 
 # 全局变量  类对象
 telegramObj = None
@@ -97,7 +91,8 @@ class Telegram():
             "pageTitle": pageTitle,
             "memberInfo": memberInfo,
             "descInfo": descInfo,
-            "descInfoCN": descInfoCN
+            "descInfoCN": descInfoCN,
+            "country": ""
         }
         self.insertItem(item)
 
@@ -135,7 +130,7 @@ def readMongo(mongodb):
     while True:
         resultList = list(telegramUrlColletion.find({"isData": False}).limit(100))
         if not resultList:
-            logging.error("没有需要搜索的数据:{}".format(int(time.time())))
+            logging.error("没有需要搜索的tele数据:{}".format(int(time.time())))
             time.sleep(60)
             continue
         for result in resultList:

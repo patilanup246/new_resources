@@ -14,16 +14,11 @@ import sys
 import time
 
 sys.path.append("./../")
-from logs.loggerDefine import loggerDefine
 
 from db.mongodb import connectMongo
 import random
+import logging
 
-webspiderDir = "./../logs/web/"
-if not os.path.exists(webspiderDir):
-    os.makedirs(webspiderDir)
-loggerFile = webspiderDir + "googlesearch.log"
-logging = loggerDefine(loggerFile)
 holeurl = []
 bullshit = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
@@ -226,7 +221,11 @@ def mainRunGet():
     # 循环获取关键字
     while True:
         resultList = keyWordsCollection.distinct("originKey",
-                                                 {"$or": [{"platId": 1}, {"platId": 3}], "istelegram": False})
+                                                 {"$or": [{"platId": 1}, {"platId": 3}], "istelegram": False,
+                                                  "language": "希伯来"})
+
+        if not resultList:
+            logging.error("没有需要搜索telegram的关键字:{}".format(int(time.time())))
         for result in resultList:
             keyWord = result
             getcms(keyWord)

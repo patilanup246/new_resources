@@ -794,8 +794,8 @@ def dealkeyWord(result):
 
 if __name__ == '__main__':
     # 验证 mms 和cmms
-    mmsreadMongoth = threading.Thread(target=mmsreadMongo, args=())
-    mmsreadMongoth.start()
+    # mmsreadMongoth = threading.Thread(target=mmsreadMongo, args=())
+    # mmsreadMongoth.start()
 
     # 回补国家
     backcountryth = threading.Thread(target=backCountry, args=(collection,))

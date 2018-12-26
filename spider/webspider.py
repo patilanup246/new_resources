@@ -140,6 +140,7 @@ cmsListErro = [
     "vtex enterprise",
     "prestashop",
     "demandware",
+    "vtex integrated itore"
 ]
 
 
@@ -782,8 +783,10 @@ class TitleBack(threading.Thread):
                 driver.close()
                 driver.switch_to_window(driver.window_handles[0])
                 return
-
-            responseBody = driver.page_source
+            try:
+                responseBody = driver.page_source
+            except Exception as e:
+                responseBody = ""
             if not responseBody:
                 driver.close()
                 driver.switch_to_window(driver.window_handles[0])
@@ -860,7 +863,7 @@ class GetLinMail(threading.Thread):
         while True:
             # 查询数据
             resultList = list(webResourcesCollection.find(
-                {"emailStr": "", "connect": "", "title": {"$ne": ""}, "whiteNum": {"$gte": 2},
+                {"emailStr": "", "whiteNum": {"$gte": 2},
                  "isGetLink": False,
                  "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
                          {"iscmms": False, "part": "clothes"}], "fhBlackWordCount": 0, "blackNum": 0,
@@ -935,19 +938,11 @@ class backHeaderFooter(threading.Thread):
                          "viewCount": {"$gte": 10000}}).limit(5))
             else:
                 resultList = list(webResourcesCollection.find(
-                    {"header": "", "footer": "", "whiteNum": {"$gte": 3}, "title": {"$ne": ""},
-                     "viewCount": {"$gte": 10000}, "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                                           {"iscmms": False, "part": "clothes"}]}).limit(1000).sort(
-                    [("insertTime", pymongo.DESCENDING)]))
+                    {"header": "", "footer": "", "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
+                                                         {"iscmms": False, "part": "clothes"}]}))
             if not resultList:
-                logging.error("没有需要回补headers和footer的数据")
-                resultList = list(webResourcesCollection.find(
-                    {"header": "", "footer": "", "title": {"$ne": ""}, "viewCount": {"$gte": 10000},
-                     "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                             {"iscmms": False, "part": "clothes"}]}).limit(1000))
-                if not resultList:
-                    time.sleep(60)
-                    continue
+                time.sleep(60)
+                continue
             urls = []
             for result in resultList:
                 url = result["url"]
@@ -1003,7 +998,7 @@ class backCountry(threading.Thread):
     def run(self):
         while True:
             resultList = list(
-                self.collection.find({country: "", "whiteNum": {"$gte": 2}, "blackNum": 0, "fhBlackWordCount": 0,
+                self.collection.find({"country": "", "whiteNum": {"$gte": 2}, "blackNum": 0, "fhBlackWordCount": 0,
                                       "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
                                               {"iscmms": False, "part": "clothes"}]}).limit(1000).sort(
                     [("insertTime", pymongo.DESCENDING)]))

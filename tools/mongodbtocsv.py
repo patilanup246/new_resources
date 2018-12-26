@@ -196,7 +196,21 @@ def writeCSV(file, fieldList, collection, query):
     try:
         with open(file, "w", newline='', encoding="utf_8_sig") as csvfileWriter:
             writer = csv.writer(csvfileWriter)
-            writer.writerow(fieldList)
+            writer.writerow(["url",
+                             "事业部",
+                             "白名单数量",
+                             "白名单",
+                             "标题描述",
+                             "邮箱",
+                             "facebook",
+                             "instagram",
+                             "youtube",
+                             "twitter",
+                             "流量",
+                             "国家",
+                             "百分比",
+                             "邮箱是否可用",
+                             ])
 
             # urlList = collection.distinct("url", query)
             allRecordRes = mongoQuery(collection, query)
@@ -241,12 +255,23 @@ def writeCSV(file, fieldList, collection, query):
 
 
 if __name__ == '__main__':
-    # web()
-    file = "./youtube菲律宾.csv"
-    fieldList = ["upTitle", "keyWord", "country", "isMail", "emailAddress", "Facebook", "description", "url",
-                 "name", "VideoTitleCount",
-                 "subscriberCount", "viewCountAvg", "titleLastUpdateTime", "viewCountFirst", "whiteWord"]
-    collection = db["resources"]
-    query = {"country": "菲律宾", "csvLoad": False, "VideoTitleCount": {"$gte": 2}, "part": "GB", "ismms": False,
-             "blackWordCount": 0}
+    file = "./web以色列.csv"
+    fieldList = ["url",
+                 "part",
+                 "whiteNum",
+                 "whiteStr",
+                 "titleChinese",
+                 "emailStr",
+                 "facebook",
+                 "instagram",
+                 "youtube",
+                 "twitter",
+                 "viewCount",
+                 "country",
+                 "percent",
+                 "isRight",
+                 ]
+    collection = db["webResources"]
+    query = {"country": "以色列", "whiteNum": {"$gte": 2}, "part": "GB", "ismms": False, "blackNum": 0,
+             "fhBlackWordCount": 0}
     writeCSV(file, fieldList, collection, query)

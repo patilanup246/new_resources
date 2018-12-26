@@ -32,6 +32,7 @@ cmsListErro = [
     "vtex enterprise",
     "prestashop",
     "demandware",
+    "vtex integrated itore"
 ]
 proxy = {}
 
@@ -68,10 +69,11 @@ def verifyMail(email):
             result = emailResult["result"]
             if result == "valid":
                 logging.info("通过验证邮箱可用{}".format(address))
-                collection.update({"emailStr": address}, {"$set": {"isRight": True}}, upsert=True, multi=True)
+                collection.update({"emailStr": email}, {"$set": {"emailStr": address, "isRight": True}}, upsert=True,
+                                  multi=True)
             else:
-                logging.error("通过验证邮箱不可用{}".format(address))
-                collection.update({"emailStr": address}, {"$set": {"isRight": False}}, upsert=True, multi=True)
+                logging.error("通过验证邮箱不可用{}".format(email))
+                collection.update({"emailStr": email}, {"$set": {"isRight": False}}, upsert=True, multi=True)
     else:
         # 不可用
         logging.warn(
@@ -93,7 +95,7 @@ def readMongo():
     while True:
         # 把没有邮箱的更新为
         resultList = list(
-            collection.find({"emailStr": {"$ne": ""}, "isRight": {"$exists": 0}, "whiteNum": {"$gte": 2},
+            collection.find({"emailStr": {"$ne": ""}, "isRight": {"$exists": 0}, "whiteNum": {"$gte": 1},
                              "fhBlackWordCount": 0, "blackNum": 0, "ismms": False,
                              "viewCount": {"$gte": 10000}}).limit(100).sort(
                 [("insertTime", pymongo.DESCENDING)]))

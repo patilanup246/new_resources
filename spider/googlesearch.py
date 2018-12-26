@@ -18,6 +18,9 @@ from logs.loggerDefine import loggerDefine
 
 from db.mongodb import connectMongo
 import random
+from spider.googlesearchtelagram import mainRunGet as mainRunGetTele
+from spider.telegram import mainRun as mainRunTelegram
+from tools.youtubetool.backcountry import readMongo as readMongoBackcountry
 
 webspiderDir = "./../logs/web/"
 if not os.path.exists(webspiderDir):
@@ -86,6 +89,7 @@ db = connectMongo(True)
 googleUrlCollection = db["googleUrl"]
 webResourcescollection = db["webResources"]
 keyWordsCollection = db["keyWords"]
+telegramResource = db["telegramResource"]
 
 domainListGB = []
 domainListCL = []
@@ -94,7 +98,7 @@ domainListCL = []
 def sendRequest(url):
     for i in range(3):
         try:
-            response = requests.get(url=url, timeout=35, headers=bullshit)
+            response = requests.get(url=url, timeout=100, headers=bullshit)
             response.encoding = "utf-8"
             if response.status_code == 200:
                 return response.text
@@ -112,6 +116,9 @@ def getcms(keyword):
 
     word = words.get(language)
     if not word:
+        logging.info("没有适配语言:{}".format(language))
+        # 改变关键词获取状态
+        updateStatusKeyWord(keyword, part)
         return
 
     url = "http://api.serpprovider.com/5bfdf4cd7d33d1d77b9875d1/google/en-us/{}/{}".format(word, keyword)
@@ -126,8 +133,12 @@ def getcms(keyword):
         reslist = reslist[0]
     else:
         logging.error("google搜索后没有数据:{}".format(url))
+        # 改变关键词获取状态
+        updateStatusKeyWord(keyword, part)
         return
     if not reslist:
+        # 改变关键词获取状态
+        updateStatusKeyWord(keyword, part)
         logging.error("google搜索后没有数据:{}".format(url))
         return
     for data in reslist:
@@ -220,11 +231,31 @@ def insertItem(domain, url, sourceUrl, scheme, keyword, language, resPeople, tit
 def mainRunGet():
     # 循环获取关键字
     while True:
-        resultList = keyWordsCollection.distinct("originKey", {"$or": [{"platId": 1}, {"platId": 3}], "isGet": False})
+        resultList = keyWordsCollection.distinct("originKey", {"$or": [{"platId": 1}, {"platId": 3}], "isGet": False,
+                                                               "language": "希伯来"})
+
+        if not resultList:
+            logging.error("google没有需要搜索的数据{}".format(int(time.time())))
+            time.sleep(60)
+            continue
         for result in resultList:
             keyWord = result
             getcms(keyWord)
 
 
 if __name__ == '__main__':
-    mainRunGet()
+    # google searceh th
+    googlesearchTh = threading.Thread(target=mainRunGet, args=())
+    googlesearchTh.start()
+
+    # 搜索telegram url线程
+    googleteleTh = threading.Thread(target=mainRunGetTele, args=())
+    googleteleTh.start()
+
+    # 搜索telegram具体信息线程线程
+    telegramTh = threading.Thread(target=mainRunTelegram, args=())
+    telegramTh.start()
+
+    # 回补国家信息
+    backcountryTh = threading.Thread(target=readMongoBackcountry, args=(telegramResource,))
+    backcountryTh.start()
