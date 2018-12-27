@@ -177,7 +177,7 @@ def getHtml(url, collection):
     html = ""
     for i in range(3):
         try:
-            response = requests.get(url=url, headers=header, timeout=20, verify=False)
+            response = requests.get(url=url, headers=header, timeout=100, verify=False)
             response.encoding = "utf-8"
             if response.status_code == 200:
                 html = response.content

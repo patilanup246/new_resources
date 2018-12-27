@@ -34,6 +34,7 @@ import threading
 import pymongo
 import csv
 import multiprocessing
+from tools.youtubetool.backcountry import readMongo as readMongoBackCountry
 
 platId = 3
 
@@ -350,9 +351,15 @@ def dealHeaderFooterInfo(selector):
             "//*[contains(@id,'Header')]")
         if node:
             for i in node:
-                textList += i.xpath(".//text()")
-        else:
-            textList += selector.xpath("//head//text()")
+                try:
+                    textList += i.xpath(".//text()")
+                except Exception as e:
+                    textList = []
+
+        textList += selector.xpath("//head//text()")
+
+        if not textList:
+            textList = selector.xpath("//html//text()")
 
         if not textList:
             headerStr = ""
@@ -371,10 +378,12 @@ def dealHeaderFooterInfo(selector):
             "//*[contains(@id,'Footer')]")
         if node:
             for i in node:
-                textList += i.xpath(".//text()")
-        else:
-            textList = []
-
+                try:
+                    textList += i.xpath(".//text()")
+                except Exception as e:
+                    textList = []
+        if not textList:
+            textList = selector.xpath("//html//text()")
         if not textList:
             footerStr = ""
         else:
@@ -394,12 +403,12 @@ def dealHeaderFooterInfo(selector):
                 headerZH = mainTranslate(headerStr[:4000])
                 footerZH = ""
             elif not headerStr:
-                footerZH = mainTranslate(footerStr[:4000])
+                footerZH = mainTranslate(footerStr[-4000:])
                 headerZH = ""
             else:
                 # 合并翻译
                 headerZH = mainTranslate(headerStr[:4000])
-                footerZH = mainTranslate(footerStr[:4000])
+                footerZH = mainTranslate(footerStr[-4000:])
         fhBlackWord = ""
         fhBlackWordCount = 0
         for word in blackWordList:
@@ -947,8 +956,9 @@ class backHeaderFooter(threading.Thread):
                          "viewCount": {"$gte": 10000}}).limit(5))
             else:
                 resultList = list(webResourcesCollection.find(
-                    {"header": "", "footer": "", "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
-                                                         {"iscmms": False, "part": "clothes"}]}))
+                    {"titleChinese": {"$ne": ""}, "header": "", "footer": "",
+                     "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
+                             {"iscmms": False, "part": "clothes"}]}))
             if not resultList:
                 time.sleep(60)
                 continue
@@ -1036,6 +1046,11 @@ class backCountry(threading.Thread):
 
 
 if __name__ == '__main__':
+    # 回补国家信息
+    query = {"country": "", "$or": [{"title": {"$ne": ""}}, {"desc": {"$ne": ""}}]}
+    backCountryTh = threading.Thread(target=readMongoBackCountry, args=(webResourcesCollection, query,))
+    backCountryTh.start()
+
     # 获取lin邮箱
     linTh = GetLinMail()
     linTh.start()

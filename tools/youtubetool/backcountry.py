@@ -68,23 +68,23 @@ def checkcountry(describtion, upname, url):
         upname = ""
     try:
         country = ""
-        if describtion:
+        if upname:
             try:
-                rez = detect(describtion)
+                rez = detect(upname)
             except Exception as e:
                 rez = "error"
             country = countrys.get(rez)
             if not country:
                 print("errlist:{}".format(rez))
                 try:
-                    rez = detect(upname)
+                    rez = detect(describtion)
                 except Exception as e:
                     print("err:{}".format(rez))
                     rez = "error"
                 country = countrys.get(rez)
         else:
             try:
-                rez = detect(upname)
+                rez = detect(describtion)
             except Exception as e:
                 rez = "error"
             country = countrys.get(rez)
@@ -129,6 +129,9 @@ def readMongo(collection, query):
             elif collection.name == "fbresources":
                 desc = result.get("descriptionUn")
                 uptitle = result.get("groupName")
+            elif collection.name == "webResources":
+                desc = result.get("desc")
+                uptitle = result.get("title")
             country = sendReq(desc, uptitle, url)
             if not country:
                 logging.error("没有正确返回国家信息:{}".format(url))
