@@ -359,7 +359,10 @@ def dealHeaderFooterInfo(selector):
         textList += selector.xpath("//head//text()")
 
         if not textList:
-            textList = selector.xpath("//html//text()")
+            try:
+                textList = selector.xpath("//html//text()")
+            except Exception as e:
+                textList = []
 
         if not textList:
             headerStr = ""
@@ -372,7 +375,10 @@ def dealHeaderFooterInfo(selector):
                 text = text + ","
                 textStr += text
             headerStr = textStr.strip()[:-1]
-        textList = selector.xpath("//footer//text()")
+        try:
+            textList = selector.xpath("//footer//text()")
+        except Exception as e:
+            textList = []
         node = selector.xpath("//*[contains(@class,'footer')]") + selector.xpath(
             "//*[contains(@id,'footer')]") + selector.xpath("//*[contains(@class,'Footer')]") + selector.xpath(
             "//*[contains(@id,'Footer')]")
@@ -382,10 +388,9 @@ def dealHeaderFooterInfo(selector):
                     textList += i.xpath(".//text()")
                 except Exception as e:
                     textList = []
+
         if not textList:
-            textList = selector.xpath("//html//text()")
-        if not textList:
-            footerStr = ""
+            footerStr = headerStr
         else:
             textStr = ""
             for text in list(set(textList)):
@@ -952,8 +957,9 @@ class backHeaderFooter(threading.Thread):
             if sys.argv[1] == "debug":
                 resultList = list(
                     webResourcesCollection.find(
-                        {"header": "", "footer": "", "whiteNum": {"$gte": 3}, "title": {"$ne": ""},
-                         "viewCount": {"$gte": 10000}}).limit(5))
+                        {"titleChinese": {"$ne": ""}, "header": "", "footer": "",
+                         "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
+                                 {"iscmms": False, "part": "clothes"}]}).limit(5))
             else:
                 resultList = list(webResourcesCollection.find(
                     {"titleChinese": {"$ne": ""}, "header": "", "footer": "",
@@ -975,6 +981,7 @@ class backHeaderFooter(threading.Thread):
         try:
             responseStr = getHtml(url, webResourcesCollection)
             if not responseStr:
+                logging.error("没有返回response:{}".format(url))
                 return
             try:
                 selector = etree.HTML(responseStr)
@@ -1046,68 +1053,68 @@ class backCountry(threading.Thread):
 
 
 if __name__ == '__main__':
-    # 回补国家信息
-    query = {"country": "", "$or": [{"title": {"$ne": ""}}, {"desc": {"$ne": ""}}]}
-    backCountryTh = threading.Thread(target=readMongoBackCountry, args=(webResourcesCollection, query,))
-    backCountryTh.start()
-
-    # 获取lin邮箱
-    linTh = GetLinMail()
-    linTh.start()
-
-    # 验证邮箱
-    verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-    verifyMailth.start()
-
-    # 回补mainRBackWhatRun信息
-    WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
-    WhatRunth.start()
-
-    # web端去重mms
-    readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
-    readMongowebMMStripth.start()
-
-    # 回补没有标题的数据
-    titleObj = TitleBack()
-    titleObj.start()
-
-    # 抓取web端详细信息
-    webpro = multiprocessing.Process(target=getMongoUrl, args=())
-    webpro.start()
+    # # 回补国家信息
+    # query = {"country": "", "$or": [{"title": {"$ne": ""}}, {"desc": {"$ne": ""}}]}
+    # backCountryTh = threading.Thread(target=readMongoBackCountry, args=(webResourcesCollection, query,))
+    # backCountryTh.start()
+    #
+    # # 获取lin邮箱
+    # linTh = GetLinMail()
+    # linTh.start()
+    #
+    # # 验证邮箱
+    # verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+    # verifyMailth.start()
+    #
+    # # 回补mainRBackWhatRun信息
+    # WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
+    # WhatRunth.start()
+    #
+    # # web端去重mms
+    # readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
+    # readMongowebMMStripth.start()
+    #
+    # # 回补没有标题的数据
+    # titleObj = TitleBack()
+    # titleObj.start()
+    #
+    # # 抓取web端详细信息
+    # webpro = multiprocessing.Process(target=getMongoUrl, args=())
+    # webpro.start()
 
     # 回补所有的数据header 和 footer为空的数据
     backHeaderFooterOBJ = backHeaderFooter()
     backHeaderFooterOBJ.start()
 
-    while True:
-        if not verifyMailth.is_alive():
-            # 验证邮箱
-            verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
-            verifyMailth.start()
-
-        if not WhatRunth.is_alive():
-            # 回补mainRBackWhatRun信息
-            WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
-            WhatRunth.start()
-
-        if not readMongowebMMStripth.is_alive():
-            # web端去重mms
-            readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
-            readMongowebMMStripth.start()
-
-        if not titleObj.is_alive():
-            # 回补没有标题的数据
-            titleObj = TitleBack()
-            titleObj.start()
-
-        if not webpro.is_alive():
-            # 抓取web端详细信息
-            webpro = multiprocessing.Process(target=getMongoUrl, args=())
-            webpro.start()
-
-        if not backHeaderFooterOBJ.is_alive():
-            # 回补所有的数据header 和 footer为空的数据
-            backHeaderFooterOBJ = backHeaderFooter()
-            backHeaderFooterOBJ.start()
-
-        time.sleep(10)
+    # while True:
+    #     if not verifyMailth.is_alive():
+    #         # 验证邮箱
+    #         verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
+    #         verifyMailth.start()
+    #
+    #     if not WhatRunth.is_alive():
+    #         # 回补mainRBackWhatRun信息
+    #         WhatRunth = threading.Thread(target=mainRBackWhatRun, args=())
+    #         WhatRunth.start()
+    #
+    #     if not readMongowebMMStripth.is_alive():
+    #         # web端去重mms
+    #         readMongowebMMStripth = threading.Thread(target=readMongowebMMStrip, args=())
+    #         readMongowebMMStripth.start()
+    #
+    #     if not titleObj.is_alive():
+    #         # 回补没有标题的数据
+    #         titleObj = TitleBack()
+    #         titleObj.start()
+    #
+    #     if not webpro.is_alive():
+    #         # 抓取web端详细信息
+    #         webpro = multiprocessing.Process(target=getMongoUrl, args=())
+    #         webpro.start()
+    #
+    #     if not backHeaderFooterOBJ.is_alive():
+    #         # 回补所有的数据header 和 footer为空的数据
+    #         backHeaderFooterOBJ = backHeaderFooter()
+    #         backHeaderFooterOBJ.start()
+    #
+    #     time.sleep(10)

@@ -118,7 +118,7 @@ def readMongo(collection, query):
             time.sleep(100)
             continue
         for result in resultList:
-            time.sleep(2)
+            time.sleep(1)
             url = result["url"]
             if collection.name == "resources":
                 desc = result.get("descriptionUn")
@@ -137,7 +137,10 @@ def readMongo(collection, query):
                 logging.error("没有正确返回国家信息:{}".format(url))
                 country = result.get("language")
                 if not country:
-                    continue
+                    desc = result.get("videotitleUn")
+                    country = sendReq(desc, "", url)
+                    if not country:
+                        continue
             updateCountry(collection, country, url)
 
 

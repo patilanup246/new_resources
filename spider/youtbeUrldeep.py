@@ -97,7 +97,7 @@ def dealResult(result):
     # sendRequestUser(url, keyWord, name, part, station, language)
     th = threading.Thread(target=sendRequestUser, args=(url, keyWord, name, part, station, language))
     th.start()
-    time.sleep(1)
+    # time.sleep(1)
 
 
 def sendRequestUser(url, keyWord, name, part, station, language):

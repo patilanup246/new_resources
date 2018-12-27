@@ -178,26 +178,16 @@ def getHtml(url, collection):
     for i in range(3):
         try:
             response = requests.get(url=url, headers=header, timeout=100, verify=False)
-            response.encoding = "utf-8"
             if response.status_code == 200:
-                html = response.content
+                html = response.content.decode()
                 break
             else:
-                if str(response.status_code).startswith("4") or str(response.status_code).startswith("5"):
-                    logging.error("访问页面详情的状态码是:{},url:{}".format(response.status_code, url))
-                    result = collection.find_one({"url": formerUrl})
-                    if result:
-                        collection.remove({"url": formerUrl})
-                    break
                 logging.error("访问页面详情的状态码是:{},url:{}".format(response.status_code, url))
         except Exception as e:
             if repr(e).find("timed out") > 0:
                 logging.error("请求超时{}次,url:{}".format(i + 1, url))
             else:
-                result = collection.find_one({"url": formerUrl})
-                if result:
-                    collection.remove({"url": formerUrl})
-                break
+                logging.error(e)
             html = ""
     return html
 

@@ -43,7 +43,7 @@ clotheswhiteList = blackwhitecoll.distinct("word", {"isWhite": True, "platId": p
 
 errNode = 0
 keyWordList = []
-
+searchurls = []
 userPsdItem = {
     # "wuzeronger@live.com": "wuzeronger123",  # 需要验证身份
     "958905350@qq.com": "withyou1314",  # 已经被禁止搜索具体群组
@@ -282,6 +282,11 @@ def groupDeal(driver, keyWord, userName, resPeople, language, part):
                     logging.error(traceback.format_exc())
                     continue
 
+                if link in searchurls:
+                    logging.error("已经访问过{}".format(link))
+                    continue
+
+                searchurls.append(link)
                 # 通过描述信息过滤黑名单
                 descriptionList = descrNode.xpath('./div/div/div/text()')
                 if not descriptionList:
