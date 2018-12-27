@@ -42,7 +42,8 @@ def sendRequest(text):
             print(e)
             logging.error(e)
             logging.warn("****************翻译失败****************")
-
+    if not textChinses:
+        textChinses = text
     return textChinses
 
 

@@ -4,6 +4,7 @@ sys.path.append('./../../')
 import threading
 from db.mongodb import connectMongo
 import logging
+import time
 
 mongodb = connectMongo(True)
 collection = mongodb["telegramResource"]
@@ -21,10 +22,11 @@ class whiteReview(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
+        # while True:
         resultList = list(collection.find({}))
         if not resultList:
             logging.error("没有数据")
-            time.sleep(24 * 3600 * 7)
+            time.sleep(120)
         for result in resultList:
             try:
                 url = result["url"]
@@ -47,7 +49,7 @@ class whiteReview(threading.Thread):
                 blackWordCount = 0
                 for word in blackList:
                     if word in description or word in descriptionChinese:
-                        blackWord += word + ""
+                        blackWord += word + " "
                         blackWordCount += 1
                 blackWord = blackWord.strip()
                 try:

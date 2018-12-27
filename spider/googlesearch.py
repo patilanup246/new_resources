@@ -257,5 +257,6 @@ if __name__ == '__main__':
     telegramTh.start()
 
     # 回补国家信息
-    backcountryTh = threading.Thread(target=readMongoBackcountry, args=(telegramResource,))
+    query = {"country": "", "$or": [{"pageTitle": {"$ne": ""}}, {"descInfo": {"$ne": ""}}]}
+    backcountryTh = threading.Thread(target=readMongoBackcountry, args=(telegramResource, query))
     backcountryTh.start()

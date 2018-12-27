@@ -25,6 +25,7 @@ from lxml import etree
 import traceback
 import threading
 import random
+from tools.youtubetool.backcountry import readMongo as readMongoBackCountry
 
 platId = 2
 db = connectMongo(True)
@@ -130,7 +131,7 @@ def keyWordDeal(keyWordList, driver, userName):
         for result in keyWordList:
             endTime = int(time.time())
             # 控制账户访问频率：
-            if endTime - startTime >= random.randint(3600, 7200):
+            if endTime - startTime >= random.randint(1800, 3600):
                 del userPsdItem[userName]
                 driver.quit()
             keyWord = result["keyWord"]
@@ -183,7 +184,8 @@ def keyWordDeal(keyWordList, driver, userName):
                     logging.info("没有搜索到相关信息,关键字:{}".format(keyWordNew))
                     driver.close()
                     driver.switch_to_window(driver.window_handles[0])
-                    word = "xiaomi"
+                    wordList = ["Apple", "Mac", "Microsoft"]
+                    word = random.choice(wordList)
                     url = "https://www.facebook.com/search/str/{}/keywords_groups".format(word)
                     js = 'window.open("{}");'.format(url)
                     driver.execute_script(js)
@@ -425,7 +427,7 @@ def checkText(response, url):
         logging.error(traceback.format_exc())
 
 
-def black(desc, part):
+def black(desc, part, url):
     blackWord = ""
     blackNum = 0
     if part == "GB":
@@ -437,14 +439,14 @@ def black(desc, part):
             if word in desc:
                 blackWord += word + " "
                 blackNum += 1
-                logging.error("存在黑名单中,word:{}".format(word))
-        return blackWord.strip(),blackNum
+                logging.error("存在黑名单中,word:{}    {}".format(word, url))
+        return blackWord.strip(), blackNum
     except Exception as e:
         logging.error(traceback.format_exc())
 
 
 # 白名单处理：
-def white(desc, part):
+def white(desc, part, url):
     whiteWord = ""
     whiteNum = 0
     if part == "GB":
@@ -456,8 +458,8 @@ def white(desc, part):
             if word in desc:
                 whiteWord += word + " "
                 whiteNum += 1
-                logging.error("存在白名单中,word:{}".format(word))
-        return whiteWord.strip(),whiteNum
+                logging.error("存在白名单中,word:{},   {}".format(word, url))
+        return whiteWord.strip(), whiteNum
     except Exception as e:
         logging.error(traceback.format_exc())
 
@@ -572,8 +574,8 @@ def parsePage(response, url, resPeople, keyWord, language, part):
         if description:
             # 翻译
             description = mainTranslate(description)
-        blackWord,blackNum = black(description + descriptionUn, part)
-        whiteWord,whiteNum = white(description + descriptionUn, part)
+        blackWord, blackNum = black(description + descriptionUn, part, url)
+        whiteWord, whiteNum = white(description + descriptionUn, part, url)
         fbresourcesCollection.insert_one({
             "_id": str(platId) + "_" + part + "_" + url,
             "description": description,
@@ -593,8 +595,8 @@ def parsePage(response, url, resPeople, keyWord, language, part):
             "lastUpdate": int(time.time()),
             "blackWord": blackWord,
             "blackNum": blackNum,
-            "whiteWord":whiteWord,
-            "whiteNum":whiteNum
+            "whiteWord": whiteWord,
+            "whiteNum": whiteNum
         })
     except Exception as e:
         logging.error(traceback.format_exc())
@@ -613,6 +615,10 @@ def mainR(url, userName, psd, name):
 
 
 if __name__ == '__main__':
+    # 回补国家信息
+    query = {"country": {"$exists": 0}}
+    backcountryTh = threading.Thread(target=readMongoBackCountry, args=(fbresourcesCollection, query,))
+    backcountryTh.start()
     # 构建线程
     nameList = []
     # nameList = keyCollection.distinct("resPeople", {"platId": 2, "getData": False})

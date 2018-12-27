@@ -8,8 +8,11 @@ db = connectMongo(True)
 blackWhiteCollection = db["blackWhite"]
 collection = db["webResources"]
 
-black = blackWhiteCollection.distinct("word", {"isBlack": True, "platId": 3, "part": "GB"})
-white = blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 3, "part": "GB"})
+blackGB = blackWhiteCollection.distinct("word", {"isBlack": True, "platId": 3, "part": "GB"})
+blackCL = blackWhiteCollection.distinct("word", {"isBlack": True, "platId": 3, "part": "clothes"})
+
+whiteGB = blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 3, "part": "GB"})
+whiteCL = blackWhiteCollection.distinct("word", {"isWhite": True, "platId": 3, "part": "clothes"})
 blackWordList = [
     "买家",
     "交付",
@@ -64,6 +67,7 @@ class whiteReview(threading.Thread):
             self.dealResult(result)
 
     def dealResult(self, result):
+        part = result["part"]
         url = result["url"]
         title = result["title"]
         desc = result["desc"]
@@ -71,6 +75,12 @@ class whiteReview(threading.Thread):
         # 标题简介黑白名单
         whiteNum = 0
         whiteStr = ""
+        if part == "GB":
+            white = whiteGB
+        elif part == "clothes":
+            white = whiteCL
+        else:
+            white = whiteGB
         for word in white:
             if word in title or word in desc or word in titleChinese:
                 whiteNum += 1
@@ -79,6 +89,12 @@ class whiteReview(threading.Thread):
 
         blackNum = 0
         blackStr = ""
+        if part == "GB":
+            black = blackGB
+        elif part == "clothes":
+            black = blackCL
+        else:
+            black = blackGB
         for word in black:
             if word in title or word in desc or word in titleChinese:
                 blackNum += 1
@@ -98,7 +114,7 @@ class whiteReview(threading.Thread):
                 fhBlackWordCount += 1
         fhBlackWord = fhBlackWord.strip()
 
-        collection.update({"url": url}, {
+        collection.update({"url": url, "part": part}, {
             "$set": {"whiteNum": whiteNum, "whiteStr": whiteStr, "blackNum": blackNum, "blackStr": blackStr}},
                           multi=True)
         print(url)

@@ -93,10 +93,12 @@ def getemaildata(email):  # 获取邮箱状态
 
 def readMongo():
     while True:
+        collection.update({"status": "verified"}, {"$set": {"isRight": True}}, upsert=True, multi=True)
         # 把没有邮箱的更新为
         resultList = list(
-            collection.find({"emailStr": {"$ne": ""}, "isRight": {"$exists": 0}, "whiteNum": {"$gte": 1},
-                             "fhBlackWordCount": 0, "blackNum": 0, "ismms": False,
+            collection.find({"emailStr": {"$ne": ""}, "isRight": {"$exists": 0}, "whiteNum": {"$gte": 3},
+                             "fhBlackWordCount": 0, "blackNum": 0, "$or": [{"ismms": False, "part": {"$ne": "clothes"}},
+                                                                           {"iscmms": False, "part": "clothes"}],
                              "viewCount": {"$gte": 10000}}).limit(100).sort(
                 [("insertTime", pymongo.DESCENDING)]))
         if not resultList:
@@ -118,7 +120,9 @@ def readMongo():
             if whatRun:
                 for word in cmsListErro:
                     if str(whatRun).lower().find(word.lower()) >= 0:
+                        logging.error('whatRun存在电商框架:{}'.format(word))
                         collection.update({"url": result["url"]}, {"$set": {"isRight": False}}, upsert=True, multi=True)
+                        break
 
             verifyMail(email)
 

@@ -798,7 +798,8 @@ if __name__ == '__main__':
     # mmsreadMongoth.start()
 
     # 回补国家
-    backcountryth = threading.Thread(target=backCountry, args=(collection,))
+    query = {"country": "", "$or": [{"upTitle": {"$ne": ""}}, {"descriptionUn": {"$ne": ""}}]}
+    backcountryth = threading.Thread(target=backCountry, args=(collection, query,))
     backcountryth.start()
 
     # # runThreadEnglish("立陶宛", "孙海龙")

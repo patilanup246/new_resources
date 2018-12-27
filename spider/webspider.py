@@ -16,7 +16,7 @@ if not os.path.exists(webspiderDir):
 loggerFile = webspiderDir + "webspider.log"
 logging = loggerDefine(loggerFile)
 from tools.webtool.verifyMail import readMongo as readMongoVerifyMail
-
+from multiprocessing.pool import ThreadPool
 from tools.webtool.webMMStrip import readMongo as readMongowebMMStrip
 from tools.checkurl import checkWebUrl
 from tools.translate.translate_google import mainTranslate
@@ -33,6 +33,7 @@ import json
 import threading
 import pymongo
 import csv
+import multiprocessing
 
 platId = 3
 
@@ -691,8 +692,12 @@ def getMongoUrl():
             logging.error("数据库中没有需求url,时间:{}".format(int(time.time())))
             time.sleep(60)
             continue
-        for result in resultList:
-            mainRun(result)
+        # for result in resultList:
+        #     mainRun(result)
+        pool = ThreadPool(5)
+        pool.map_async(mainRun, resultList)
+        pool.close()
+        pool.join()
 
 
 def mainRBackWhatRun():
@@ -767,7 +772,7 @@ class TitleBack(threading.Thread):
                     part = result["part"]
                     self.dealItem(url, part, result, driver)
         except Exception as e:
-            logging.error(e)
+            logging.error(traceback.format_exc())
         finally:
             driver.quit()
 
@@ -788,71 +793,73 @@ class TitleBack(threading.Thread):
             except Exception as e:
                 responseBody = ""
             if not responseBody:
+                logging.error("没有responseBoody相应:{}".format(url))
                 driver.close()
                 driver.switch_to_window(driver.window_handles[0])
                 return
-            fhBlackWord, fhBlackWordCount, blackStr, headerZH, footerZH, headerStr, footerStr, blackNum, whiteNum, whiteStr, title, desc, titleChinese, emailStr, facebook, instagram, youtube, twitter, blackStr = dealResponse(
-                responseBody, url)
-            if title:
-                logging.info("重新获取网页信息成功,{}==={}".format(url, title))
-                result["fhBlackWord"] = fhBlackWord
-                result["fhBlackWordCount"] = fhBlackWordCount
-                result["blackStr"] = blackStr
-                result["headerZH"] = headerZH
-                result["footerZH"] = footerZH
-                result["header"] = headerStr
-                result["footer"] = footerStr
-                result["blackNum"] = blackNum
-                result["whiteNum"] = whiteNum
-                result["whiteStr"] = whiteStr
-                result["title"] = title
-                result["desc"] = desc
-                result["titleChinese"] = titleChinese
-                result["facebook"] = facebook
-                result["instagram"] = instagram
-                result["youtube"] = youtube
-                result["twitter"] = twitter
-                result["insertTime"] = int(time.time())
-                webResourcesCollection.remove({"url": url})
-                if emailStr:
-                    # 把最初的数据删除
-                    emailList = list(set(emailStr.split("\n")))
-                    for num, email in enumerate(emailList):
-                        if not email:
-                            continue
-                        result["_id"] = "3_" + part + "_" + url + "_" + str(num + 1)
-                        result["emailStr"] = email
+            else:
+                fhBlackWord, fhBlackWordCount, blackStr, headerZH, footerZH, headerStr, footerStr, blackNum, whiteNum, whiteStr, title, desc, titleChinese, emailStr, facebook, instagram, youtube, twitter, blackStr = dealResponse(
+                    responseBody, url)
+                if title:
+                    logging.info("重新获取网页信息成功,{}==={}".format(url, title))
+                    result["fhBlackWord"] = fhBlackWord
+                    result["fhBlackWordCount"] = fhBlackWordCount
+                    result["blackStr"] = blackStr
+                    result["headerZH"] = headerZH
+                    result["footerZH"] = footerZH
+                    result["header"] = headerStr
+                    result["footer"] = footerStr
+                    result["blackNum"] = blackNum
+                    result["whiteNum"] = whiteNum
+                    result["whiteStr"] = whiteStr
+                    result["title"] = title
+                    result["desc"] = desc
+                    result["titleChinese"] = titleChinese
+                    result["facebook"] = facebook
+                    result["instagram"] = instagram
+                    result["youtube"] = youtube
+                    result["twitter"] = twitter
+                    result["insertTime"] = int(time.time())
+                    webResourcesCollection.remove({"url": url})
+                    if emailStr:
+                        # 把最初的数据删除
+                        emailList = list(set(emailStr.split("\n")))
+                        for num, email in enumerate(emailList):
+                            if not email:
+                                continue
+                            result["_id"] = "3_" + part + "_" + url + "_" + str(num + 1)
+                            result["emailStr"] = email
+                            try:
+                                webResourcesCollection.insert(result)
+                            except Exception as e:
+                                logging.error(e)
+                        logging.info("回补标题信息成功:{}".format(url))
+                    else:
+                        # 没有邮箱  直接更新数据即可
+                        result["_id"] = "3_" + part + "_" + url
+                        result["emailStr"] = emailStr
                         try:
                             webResourcesCollection.insert(result)
+                            logging.info("回补标题成功,url:{}".format(url))
                         except Exception as e:
                             logging.error(e)
-                    logging.info("回补标题信息成功:{}".format(url))
-                else:
-                    # 没有邮箱  直接更新数据即可
-                    result["_id"] = "3_" + part + "_" + url
-                    result["emailStr"] = emailStr
                     try:
-                        webResourcesCollection.insert(result)
-                        logging.info("回补标题成功,url:{}".format(url))
+                        if whiteNum >= 6:
+                            relateLinkSimilarSites = result["relateLinkSimilarSites"]
+                            relateLinksAlexa = result["relateLinksAlexa"]
+                            dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, result["part"], result["station"],
+                                           result["url"])
                     except Exception as e:
                         logging.error(e)
-                try:
-                    if whiteNum >= 6:
-                        relateLinkSimilarSites = result["relateLinkSimilarSites"]
-                        relateLinksAlexa = result["relateLinksAlexa"]
-                        dealRelateLink(relateLinkSimilarSites, relateLinksAlexa, result["part"], result["station"],
-                                       result["url"])
-                except Exception as e:
-                    logging.error(e)
 
-            else:
-                logging.error("依旧没有获取到标题{}".format(url))
+                else:
+                    logging.error("依旧没有获取到标题{}".format(url))
+
+                driver.close()
+                driver.switch_to_window(driver.window_handles[0])
 
         except Exception as e:
             logging.error(traceback.format_exc())
-        finally:
-            driver.close()
-            driver.switch_to_window(driver.window_handles[0])
 
 
 class GetLinMail(threading.Thread):
@@ -913,6 +920,8 @@ class GetLinMail(threading.Thread):
                             result["sourcePage"] = email[4]
                             result["position"] = email[5]
                             result["isGetLink"] = True
+                            if result.get("isRight") != None:
+                                del result["isRight"]
                             try:
                                 webResourcesCollection.insert(result)
                             except Exception as e:
@@ -1031,10 +1040,6 @@ if __name__ == '__main__':
     linTh = GetLinMail()
     linTh.start()
 
-    # 回补国家
-    countryth = backCountry(webResourcesCollection)
-    countryth.start()
-
     # 验证邮箱
     verifyMailth = threading.Thread(target=readMongoVerifyMail, args=())
     verifyMailth.start()
@@ -1052,8 +1057,8 @@ if __name__ == '__main__':
     titleObj.start()
 
     # 抓取web端详细信息
-    webth = threading.Thread(target=getMongoUrl, args=())
-    webth.start()
+    webpro = multiprocessing.Process(target=getMongoUrl, args=())
+    webpro.start()
 
     # 回补所有的数据header 和 footer为空的数据
     backHeaderFooterOBJ = backHeaderFooter()
@@ -1080,10 +1085,10 @@ if __name__ == '__main__':
             titleObj = TitleBack()
             titleObj.start()
 
-        if not webth.is_alive():
+        if not webpro.is_alive():
             # 抓取web端详细信息
-            webth = threading.Thread(target=getMongoUrl, args=())
-            webth.start()
+            webpro = multiprocessing.Process(target=getMongoUrl, args=())
+            webpro.start()
 
         if not backHeaderFooterOBJ.is_alive():
             # 回补所有的数据header 和 footer为空的数据
